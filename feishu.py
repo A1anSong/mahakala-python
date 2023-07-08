@@ -15,4 +15,4 @@ def send(text):
     }
     res = requests.post(url, headers=headers, data=json.dumps(data)).json()
     if res['code'] != 0:
-        logger.error('飞书提醒发送失败：' + json.dumps(res))
+        logger.error(f'飞书提醒发送失败：{res}')
