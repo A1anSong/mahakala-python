@@ -1,0 +1,30 @@
+app:
+  name: mahakala
+  version: 0.0.1
+db:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: postgres
+  database: postgres
+binance:
+  base_url: https://fapi.binance.com
+  stream_url: wss://fstream.binance.com
+  api_key:
+  api_secret:
+feishu:
+  webhook:
+logging:
+  version: 1
+  formatters:
+    simple:
+      format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  handlers:
+    console:
+      class: logging.StreamHandler
+      formatter: simple
+      level: DEBUG
+  loggers:
+    console_logger:
+      handlers: [ console ]
+      level: DEBUG
