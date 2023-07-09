@@ -2,5 +2,4 @@ binance_futures_connector==4.0.0rc3
 Flask==2.3.2
 psycopg2==2.9.6
 PyYAML==6.0
-PyYAML==6.0
 Requests==2.31.0
