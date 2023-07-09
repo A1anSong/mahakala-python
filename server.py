@@ -5,4 +5,4 @@ web = Flask(__name__)
 
 @web.route('/')
 def index():
-    return 'ok'
+    return 'ok! mahakala!'
