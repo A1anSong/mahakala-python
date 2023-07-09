@@ -2,7 +2,7 @@ from psycopg2 import pool
 from core import config
 
 min_conn = 1
-max_conn = 200
+max_conn = 500
 db = pool.SimpleConnectionPool(
     min_conn,
     max_conn,
