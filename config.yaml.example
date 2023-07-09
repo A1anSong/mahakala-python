@@ -9,7 +9,6 @@ db:
   database: postgres
 binance:
   base_url: https://fapi.binance.com
-  stream_url: wss://fstream.binance.com
   api_key:
   api_secret:
 feishu:
