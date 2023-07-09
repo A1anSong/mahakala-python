@@ -4,6 +4,7 @@ from binance.um_futures import UMFutures
 
 from core import config, logger
 from db import db
+import feishu
 
 um_futures_client = UMFutures(key=config['binance']['api_key'], secret=config['binance']['api_secret'],
                               base_url=config['binance']['base_url'])
@@ -65,6 +66,7 @@ def update_klines(symbol_info, interval, index, total_symbols):
 
             except Exception as e:
                 logger.error(f'({index + 1}/{total_symbols})更新{symbol}的 K 线数据失败，原因：{e}')
+                feishu.send('程序异常', f'''({index + 1}/{total_symbols})更新{symbol}的 K 线数据失败，原因：{e}''')
                 conn.rollback()
             finally:
                 db.putconn(conn)
@@ -117,6 +119,7 @@ def create_table(symbol, index, total_symbols):
                 conn.commit()
         except Exception as e:
             logger.error(f'({index + 1}/{total_symbols})创建表{symbol}失败，原因：{e}')
+            feishu.send('程序异常', f'''({index + 1}/{total_symbols})创建表{symbol}失败，原因：{e}''')
             conn.rollback()
         finally:
             db.putconn(conn)

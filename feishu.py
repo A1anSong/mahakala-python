@@ -4,13 +4,13 @@ import requests
 from core import config, logger
 
 
-def send(text):
+def send(title, text):
     url = config['feishu']['webhook']
     headers = {'Content-Type': 'application/json'}
     data = {
         'msg_type': 'text',
         'content': {
-            'text': f'''行情提醒
+            'text': f'''{title}
 {text}
 <at user_id="all">所有人</at>'''
         }
