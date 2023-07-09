@@ -10,7 +10,9 @@ def send(text):
     data = {
         'msg_type': 'text',
         'content': {
-            'text': f'行情提醒\n{text}\n<at user_id="all">所有人</at>'
+            'text': f'''行情提醒
+{text}
+<at user_id="all">所有人</at>'''
         }
     }
     res = requests.post(url, headers=headers, data=json.dumps(data)).json()
