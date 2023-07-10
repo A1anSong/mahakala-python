@@ -1,10 +1,14 @@
+import itertools
 from datetime import datetime, timezone
 
 from binance.um_futures import UMFutures
 
 from core import config, logger
-from db import db
+from db import db_pool
 import feishu
+
+# 创建一个转动破折号的列表
+spinner = itertools.cycle(['-', '\\', '|', '/'])
 
 um_futures_client = UMFutures(key=config['binance']['api_key'], secret=config['binance']['api_secret'],
                               base_url=config['binance']['base_url'])
@@ -12,21 +16,26 @@ um_futures_client = UMFutures(key=config['binance']['api_key'], secret=config['b
 
 # 获取币安交易信息
 def get_binance_info():
-    logger.info(f'开始初始化币安交易模块...')
+    logger.info(f'开始获取币安交易信息...')
     exchange_info = um_futures_client.exchange_info()
     symbols = [symbol for symbol in exchange_info['symbols'] if
                symbol['status'] == 'TRADING' and symbol['symbol'].endswith('USDT')]
     total_symbols = len(symbols)
     logger.info(f'TRADING状态且标的资产为USDT的交易对数量：{total_symbols}')
+    start_time = datetime.now()
     for index, symbol in enumerate(symbols):
-        update_klines(symbol, '30m', index, total_symbols)
+        interactive_content = f'''({index + 1}/{total_symbols})正在获取{symbol['symbol']}交易对信息: '''
+        update_klines(symbol, '30m', interactive_content)
+    stop_time = datetime.now()
+    print(f'\r✓ 数据拉取完成！耗时：{stop_time - start_time}')
+    logger.info(f'{total_symbols}个交易对的30m K线数据更新完毕！')
 
 
-def update_klines(symbol_info, interval, index, total_symbols):
+def update_klines(symbol_info, interval, pre_content=''):
     symbol = symbol_info['symbol']
-    create_table(symbol_info['symbol'], index, total_symbols)
+    create_table(symbol_info['symbol'], pre_content)
     while True:
-        with db.getconn() as conn:
+        with db_pool.getconn() as conn:
             try:
                 with conn.cursor() as cursor:
                     # 获取数据库中最新的一条 K 线数据的时间
@@ -41,10 +50,10 @@ def update_klines(symbol_info, interval, index, total_symbols):
                     # 获取新的 K 线数据
                     klines = um_futures_client.klines(symbol=symbol, interval=interval, startTime=start_time,
                                                       limit=1000)
-
                     # 输出更新的k线数据时间
                     local_time = datetime.fromtimestamp(klines[-1][0] / 1000, tz=timezone.utc).astimezone()
-                    logger.info(f'({index + 1}/{total_symbols})开始更新{symbol}的K线数据至：{local_time}')
+                    print(f'\r{next(spinner)} {pre_content}更新{symbol}的K线数据至：{local_time}', end='', flush=True)
+
                     # 更新数据库
                     for kline in klines:
                         time, open, high, low, close, volume, *_ = kline
@@ -65,15 +74,16 @@ def update_klines(symbol_info, interval, index, total_symbols):
                         break
 
             except Exception as e:
-                logger.error(f'({index + 1}/{total_symbols})更新{symbol}的 K 线数据失败，原因：{e}')
-                feishu.send('程序异常', f'''({index + 1}/{total_symbols})更新{symbol}的 K 线数据失败，原因：{e}''')
+                logger.error(f'(更新{symbol}的 K 线数据失败，原因：{e}')
+                feishu.send('程序异常', f'''(更新{symbol}的 K 线数据失败，原因：{e}''')
                 conn.rollback()
             finally:
-                db.putconn(conn)
+                db_pool.putconn(conn)
+    print('', end='\033[F')
 
 
-def create_table(symbol, index, total_symbols):
-    with db.getconn() as conn:
+def create_table(symbol, pre_content=''):
+    with db_pool.getconn() as conn:
         try:
             with conn.cursor() as cursor:
                 # 检查表是否存在
@@ -84,7 +94,7 @@ def create_table(symbol, index, total_symbols):
 
                 # 如果表不存在，则创建表
                 if not table_exists:
-                    logger.info(f'({index + 1}/{total_symbols})表{symbol}不存在，开始创建')
+                    print(f'\r{next(spinner)}{pre_content}表{symbol}不存在，开始创建', end='', flush=True)
                     cursor.execute(f'''
                         CREATE TABLE "{symbol}" (
                             time TIMESTAMPTZ NOT NULL,
@@ -97,7 +107,7 @@ def create_table(symbol, index, total_symbols):
                         );
                     ''')
                 else:
-                    logger.info(f'({index + 1}/{total_symbols})表{symbol}已存在，跳过创建')
+                    print(f'\r{next(spinner)}{pre_content}表{symbol}已存在，跳过创建', end='', flush=True)
 
                 # 检查表是否已经是超表
                 cursor.execute(f'''
@@ -108,18 +118,18 @@ def create_table(symbol, index, total_symbols):
 
                 # 如果表不是超表，则创建超表
                 if not table_is_hypertable:
-                    logger.info(f'({index + 1}/{total_symbols})表{symbol}不是超表，开始创建')
+                    print(f'\r{next(spinner)}{pre_content}表{symbol}不是超表，开始创建', end='', flush=True)
                     cursor.execute(f'''
                         SELECT create_hypertable('"{symbol}"', 'time');
                     ''')
                 else:
-                    logger.info(f'({index + 1}/{total_symbols})表{symbol}已是超表，跳过创建')
+                    print(f'\r{next(spinner)}{pre_content}表{symbol}已是超表，跳过创建', end='', flush=True)
 
                 # 提交数据库事务
                 conn.commit()
         except Exception as e:
-            logger.error(f'({index + 1}/{total_symbols})创建表{symbol}失败，原因：{e}')
-            feishu.send('程序异常', f'''({index + 1}/{total_symbols})创建表{symbol}失败，原因：{e}''')
+            logger.error(f'创建超表{symbol}失败，原因：{e}')
+            feishu.send('程序异常', f'''创建超表{symbol}失败，原因：{e}''')
             conn.rollback()
         finally:
-            db.putconn(conn)
+            db_pool.putconn(conn)
