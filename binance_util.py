@@ -1,4 +1,5 @@
 import itertools
+import time
 from datetime import datetime, timezone
 
 from binance.um_futures import UMFutures
@@ -12,28 +13,50 @@ spinner = itertools.cycle(['-', '\\', '|', '/'])
 
 um_futures_client = UMFutures(key=config['binance']['api_key'], secret=config['binance']['api_secret'],
                               base_url=config['binance']['base_url'])
+symbols = []
+symbols_set = set()
+
+first_time = True
 
 
 # 获取币安交易信息
 def get_binance_info():
+    global symbols
+    global symbols_set
+    global first_time
     logger.info(f'开始获取币安交易信息...')
     exchange_info = um_futures_client.exchange_info()
-    symbols = [symbol for symbol in exchange_info['symbols'] if
-               symbol['status'] == 'TRADING' and symbol['symbol'].endswith('USDT')]
+    new_symbols_set = {symbol['symbol'] for symbol in exchange_info['symbols'] if
+                       symbol['status'] == 'TRADING' and symbol['symbol'].endswith('USDT')}
+    should_create_table = False
+    if symbols_set != new_symbols_set:
+        if not first_time:
+            feishu.send('行情提醒', f'币安交易对信息发生变化！')
+        should_create_table = True
+        symbols = [symbol for symbol in exchange_info['symbols'] if
+                   symbol['status'] == 'TRADING' and symbol['symbol'].endswith('USDT')]
+        symbols_set = new_symbols_set
+        first_time = False
     total_symbols = len(symbols)
     logger.info(f'TRADING状态且标的资产为USDT的交易对数量：{total_symbols}')
+    if should_create_table:
+        start_time = datetime.now()
+        for index, symbol in enumerate(symbols):
+            interactive_content = f'''({index + 1}/{total_symbols})正在创建{symbol['symbol']}交易对信息: '''
+            create_table(symbol['symbol'], interactive_content)
+        stop_time = datetime.now()
+        print(f'\r✓ 交易对信息创建完成！耗时：{stop_time - start_time}')
     start_time = datetime.now()
     for index, symbol in enumerate(symbols):
-        interactive_content = f'''({index + 1}/{total_symbols})正在获取{symbol['symbol']}交易对信息: '''
+        interactive_content = f'''({index + 1}/{total_symbols})正在更新{symbol['symbol']}交易对信息: '''
         update_klines(symbol, '30m', interactive_content)
     stop_time = datetime.now()
-    print(f'\r✓ 数据拉取完成！耗时：{stop_time - start_time}')
+    print(f'\r✓ 交易对信息更新完成！耗时：{stop_time - start_time}')
     logger.info(f'{total_symbols}个交易对的30m K线数据更新完毕！')
 
 
 def update_klines(symbol_info, interval, pre_content=''):
     symbol = symbol_info['symbol']
-    create_table(symbol_info['symbol'], pre_content)
     while True:
         with db_pool.getconn() as conn:
             try:
@@ -79,7 +102,6 @@ def update_klines(symbol_info, interval, pre_content=''):
                 conn.rollback()
             finally:
                 db_pool.putconn(conn)
-    print('', end='\033[F')
 
 
 def create_table(symbol, pre_content=''):
