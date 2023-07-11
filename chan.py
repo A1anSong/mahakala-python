@@ -187,16 +187,20 @@ def get_data(symbol, interval):
         # 使用pandas的read_sql_query函数直接将SQL查询结果转换为DataFrame
         df = pd.read_sql_query(query, session.bind)
 
-        # 将time列转换为pandas datetime对象
+        # 将period列转换为pandas datetime对象
         df['period'] = pd.to_datetime(df['period'])
 
         # 因为我们按照时间降序排序获取了数据，所以可能需要将其重新排序以保持时间升序
-        df = df.sort_values('period')
+        df.sort_values('period', inplace=True)
+        df.reset_index(drop=True, inplace=True)
 
-        # 将time列设为索引
+        # 将当前的整数索引保存为一个新的列
+        df['index'] = df.index
+
+        # 将period列设为索引
         df.set_index('period', inplace=True)
 
-        df.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+        df.columns = ['Open', 'High', 'Low', 'Close', 'Volume', 'index']
 
         return df
 
