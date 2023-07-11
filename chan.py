@@ -40,20 +40,20 @@ def chan_analyze(interval):
             # 计算出开仓价到止损价之间的比例，取开仓价减去止损价的绝对值，除以开仓价，计算出止损比例，取百分比并保留2位小数
             stop_loss_ratio = round(
                 abs(signal['Entry Price'] - signal['Stop Loss Price']) / signal['Entry Price'] * 100, 2)
-            print('交易信号')
-            print(f'''交易对：{symbol['symbol']}
+            #             print('交易信号')
+            #             print(f'''交易对：{symbol['symbol']}
+            # 周期：{interval}
+            # 方向：{signal['Direction']}
+            # 开仓价：{signal['Entry Price']}
+            # 止损价：{signal['Stop Loss Price']}
+            # 止损比例：{stop_loss_ratio}%''')
+            # 发送飞书消息
+            feishu.send('交易信号', f'''交易对：{symbol['symbol']}
 周期：{interval}
 方向：{signal['Direction']}
 开仓价：{signal['Entry Price']}
 止损价：{signal['Stop Loss Price']}
 止损比例：{stop_loss_ratio}%''')
-            # 发送飞书消息
-    #             feishu.send('交易信号', f'''交易对：{symbol['symbol']}
-    # 周期：{interval}
-    # 方向：{signal['Direction']}
-    # 开仓价：{signal['Entry Price']}
-    # 止损价：{signal['Stop Loss Price']}
-    # 止损比例：{stop_loss_ratio}%''')
     logger.info(f'分析{interval}周期K线完成')
 
 
@@ -66,30 +66,50 @@ def analyze_data(df):
     }
     # 判断数据长度是否大于等于20
     if len(df) < 20:
-        return
+        return signal
 
     # 先将布林带数值计算出来
     df = add_bollinger_bands(df)
     # 处理K线的包含关系
     df_merged = merge_candle(df)
     # 判断是否有分型
-    fractal = identify_fractal(df_merged)
-    # 如果fractal['Type']不为空，则表示有分型
-    if fractal['Type'] is not None:
-        last_three_klines = fractal['Candles']
-        # 如果是顶分型，那么开仓价为中间那根K线的最低价，止损价为最高价
-        if fractal['Type'] == 'Top Fractal':
-            signal['Can Open'] = True
+    df_fractal = identify_fractal(df_merged)
+    # 过滤掉无效的分型
+    df_filtered = filter_fractals(df_fractal)
+    # 判断是否有分型
+    fractal = check_signal(df_filtered)
+    # 如果fractal不为空，那么就是有信号
+    if fractal is not None:
+        signal['Can Open'] = True
+        if fractal['fractal'] == 'top':
             signal['Direction'] = '做空'
-            signal['Entry Price'] = last_three_klines.iloc[1]['Low']
-            signal['Stop Loss Price'] = last_three_klines.iloc[1]['High']
+            signal['Entry Price'] = fractal['Low']
+            signal['Stop Loss Price'] = fractal['High']
         # 如果是底分型，那么开仓价为中间那根K线的最高价，止损价为最低价
         elif fractal['Type'] == 'Bottom Fractal':
-            signal['Can Open'] = True
             signal['Direction'] = '做多'
-            signal['Entry Price'] = last_three_klines.iloc[1]['High']
-            signal['Stop Loss Price'] = last_three_klines.iloc[1]['Low']
+            signal['Entry Price'] = fractal['High']
+            signal['Stop Loss Price'] = fractal['Low']
     return signal
+
+
+def check_signal(df):
+    # 获取倒数第二个K线
+    second_last_row = df.iloc[-2]
+
+    # 检查是否有分型
+    if second_last_row['fractal'] is not None:
+        # 顶分型，看价格最高点是否高出布林上轨
+        if second_last_row['fractal'] == 'top':
+            if second_last_row['High'] < second_last_row['Upper Band']:
+                return second_last_row
+        # 底分型，看价格最高点是否低于布林下轨
+        elif second_last_row['fractal'] == 'bottom':
+            if second_last_row['Low'] > second_last_row['Lower Band']:
+                return second_last_row
+
+    # 没有明确的信号
+    return None
 
 
 def filter_fractals(df):
@@ -172,31 +192,22 @@ def filter_fractals(df):
 
 
 def identify_fractal(df):
-    fractal = {'Type': None, 'Candles': None}
-    # 获取最后三根K线
-    last_three_rows = df.iloc[-3:]
-    high_prices = last_three_rows['High'].values
-    low_prices = last_three_rows['Low'].values
-    upper_bands = last_three_rows['Upper Band'].values
-    lower_bands = last_three_rows['Lower Band'].values
+    """
+    识别顶分型和底分型
+    """
 
-    # 判断顶分型
-    if high_prices[1] > high_prices[0] and high_prices[1] > high_prices[2] and low_prices[1] > low_prices[0] and \
-            low_prices[1] > low_prices[2]:
-        # 判断是否触及布林带上轨
-        if high_prices[1] <= upper_bands[1]:
-            fractal['Type'] = 'Top Fractal'
-            fractal['Candles'] = last_three_rows
+    # 创建一个新的列来存储分型
+    df['fractal'] = None
 
-    # 判断底分型
-    elif low_prices[1] < low_prices[0] and low_prices[1] < low_prices[2] and high_prices[1] < high_prices[0] and \
-            high_prices[1] < high_prices[2]:
-        # 判断是否触及布林带下轨
-        if low_prices[1] >= lower_bands[1]:
-            fractal['Type'] = 'Bottom Fractal'
-            fractal['Candles'] = last_three_rows
+    # 识别顶分型
+    df.loc[(df['High'].shift(1) < df['High']) &
+           (df['High'].shift(-1) < df['High']), 'fractal'] = 'top'
 
-    return fractal
+    # 识别底分型
+    df.loc[(df['Low'].shift(1) > df['Low']) &
+           (df['Low'].shift(-1) > df['Low']), 'fractal'] = 'bottom'
+
+    return df
 
 
 # 处理K线的包含关系
