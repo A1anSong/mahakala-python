@@ -35,4 +35,3 @@ if __name__ == '__main__':
     scheduler.start()
     # 启动Web服务
     web.run()
-    pass

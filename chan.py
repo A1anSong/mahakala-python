@@ -69,17 +69,11 @@ def analyze_data(df):
         return
 
     # 先将布林带数值计算出来
-    # 计算中轨，这里使用20日移动平均线
-    df['Middle Band'] = df['Close'].rolling(window=20).mean()
-    # 计算标准差
-    df['Standard Deviation'] = df['Close'].rolling(window=20).std()
-    # 计算上轨和下轨
-    df['Upper Band'] = df['Middle Band'] + 2 * df['Standard Deviation']
-    df['Lower Band'] = df['Middle Band'] - 2 * df['Standard Deviation']
+    df = add_bollinger_bands(df)
     # 处理K线的包含关系
-    df_processed = process_candlestick(df)
+    df_merged = merge_candle(df)
     # 判断是否有分型
-    fractal = identify_fractal(df_processed)
+    fractal = identify_fractal(df_merged)
     # 如果fractal['Type']不为空，则表示有分型
     if fractal['Type'] is not None:
         last_three_klines = fractal['Candles']
@@ -127,23 +121,47 @@ def identify_fractal(df):
 
 
 # 处理K线的包含关系
-def process_candlestick(df):
+def merge_candle(df):
     drop_rows = []
     i = 0
     while i < df.shape[0] - 1:
+        j = i + 1
         curr_row = df.iloc[i]
-        next_row = df.iloc[i + 1]
-        if (curr_row['High'] >= next_row['High'] and curr_row['Low'] <= next_row['Low']) or (
-                curr_row['High'] > next_row['High'] and curr_row['Low'] < next_row['Low']):
-            if curr_row['Close'] >= curr_row['Open']:
+        next_row = df.iloc[j]
+        while i > 0 and ((curr_row['High'] >= next_row['High'] and curr_row['Low'] <= next_row['Low']) or (
+                curr_row['High'] <= next_row['High'] and curr_row['Low'] >= next_row['Low'])):
+            if curr_row['High'] >= df.iloc[i - 1]['High']:
                 df.loc[df.index[i], 'High'] = max(curr_row['High'], next_row['High'])
-                df.loc[df.index[i], 'Low'] = min(curr_row['Low'], next_row['Low'])
+                df.loc[df.index[i], 'Low'] = max(curr_row['Low'], next_row['Low'])
+                df.loc[df.index[i], 'Open'] = df.loc[df.index[i], 'Low']
+                df.loc[df.index[i], 'Close'] = df.loc[df.index[i], 'High']
+                df.loc[df.index[i], 'Volume'] = curr_row['Volume'] + next_row['Volume']
             else:
                 df.loc[df.index[i], 'High'] = min(curr_row['High'], next_row['High'])
-                df.loc[df.index[i], 'Low'] = max(curr_row['Low'], next_row['Low'])
-            drop_rows.append(df.index[i + 1])
-        i += 1
+                df.loc[df.index[i], 'Low'] = min(curr_row['Low'], next_row['Low'])
+                df.loc[df.index[i], 'Open'] = df.loc[df.index[i], 'High']
+                df.loc[df.index[i], 'Close'] = df.loc[df.index[i], 'Low']
+                df.loc[df.index[i], 'Volume'] = curr_row['Volume'] + next_row['Volume']
+            drop_rows.append(df.index[j])
+            if j < df.shape[0] - 1:
+                j += 1
+                curr_row = df.iloc[i]
+                next_row = df.iloc[j]
+            else:
+                break
+        i = j
     df = df.drop(drop_rows)
+    return df
+
+
+def add_bollinger_bands(df):
+    # 计算中轨，这里使用20日移动平均线
+    df['Middle Band'] = df['Close'].rolling(window=20).mean()
+    # 计算标准差
+    df['Standard Deviation'] = df['Close'].rolling(window=20).std()
+    # 计算上轨和下轨
+    df['Upper Band'] = df['Middle Band'] + 2 * df['Standard Deviation']
+    df['Lower Band'] = df['Middle Band'] - 2 * df['Standard Deviation']
     return df
 
 
@@ -178,7 +196,7 @@ def get_data(symbol, interval):
         # 将time列设为索引
         df.set_index('period', inplace=True)
 
-        df.columns = ['Open', 'Close', 'High', 'Low', 'Volume']
+        df.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
 
         return df
 
