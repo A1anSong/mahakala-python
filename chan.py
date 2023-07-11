@@ -2,7 +2,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 import pandas as pd
 
-from core import config
+import feishu
+from core import config, logger
 import binance_util
 
 DATABASE_URI = f'''postgresql+psycopg2://{config['db']['user']}:{config['db']['password']}@{config['db']['host']}:{config['db']['port']}/{config['db']['database']}'''
@@ -22,10 +23,128 @@ interval_period = {
 
 
 def chan_analyze(interval):
-    print(f'分析{interval_period[interval]}K线数据')
-    for symbol in binance_util.symbols_set:
-        df = get_data(symbol, interval_period[interval])
-        # print(df.tail())
+    for symbol in binance_util.symbols:
+        df = get_data(symbol['symbol'], interval_period[interval])
+        # 将df数据中最后一个数据删除
+        df = df[:-1]
+        signal = analyze_data(df)
+        if signal['Can Open']:
+            # 取出当前交易对的价格小数点位数
+            precision = symbol['pricePrecision']
+            # 如果是做多，那么止损价要减去precision个小数点位数
+            if signal['Direction'] == '做空':
+                signal['Stop Loss Price'] = round(signal['Stop Loss Price'] - 0.1 ** precision, precision)
+            # 如果是做空，那么止损价要加上precision个小数点位数
+            elif signal['Direction'] == '做多':
+                signal['Stop Loss Price'] = round(signal['Stop Loss Price'] + 0.1 ** precision, precision)
+            # 计算出开仓价到止损价之间的比例，取开仓价减去止损价的绝对值，除以开仓价，计算出止损比例，取百分比并保留2位小数
+            stop_loss_ratio = round(
+                abs(signal['Entry Price'] - signal['Stop Loss Price']) / signal['Entry Price'] * 100, 2)
+            print('交易信号')
+            print(f'''交易对：{symbol['symbol']}
+周期：{interval}
+方向：{signal['Direction']}
+开仓价：{signal['Entry Price']}
+止损价：{signal['Stop Loss Price']}
+止损比例：{stop_loss_ratio}%''')
+            # 发送飞书消息
+    #             feishu.send('交易信号', f'''交易对：{symbol['symbol']}
+    # 周期：{interval}
+    # 方向：{signal['Direction']}
+    # 开仓价：{signal['Entry Price']}
+    # 止损价：{signal['Stop Loss Price']}
+    # 止损比例：{stop_loss_ratio}%''')
+    logger.info(f'分析{interval}周期K线完成')
+
+
+def analyze_data(df):
+    signal = {
+        'Can Open': False,
+        'Direction': None,
+        'Entry Price': None,
+        'Stop Loss Price': None,
+    }
+    # 判断数据长度是否大于等于20
+    if len(df) < 20:
+        return
+
+    # 先将布林带数值计算出来
+    # 计算中轨，这里使用20日移动平均线
+    df['Middle Band'] = df['Close'].rolling(window=20).mean()
+    # 计算标准差
+    df['Standard Deviation'] = df['Close'].rolling(window=20).std()
+    # 计算上轨和下轨
+    df['Upper Band'] = df['Middle Band'] + 2 * df['Standard Deviation']
+    df['Lower Band'] = df['Middle Band'] - 2 * df['Standard Deviation']
+    # 处理K线的包含关系
+    df_processed = process_candlestick(df)
+    # 判断是否有分型
+    fractal = identify_fractal(df_processed)
+    # 如果fractal['Type']不为空，则表示有分型
+    if fractal['Type'] is not None:
+        last_three_klines = fractal['Candles']
+        # 如果是顶分型，那么开仓价为中间那根K线的最低价，止损价为最高价
+        if fractal['Type'] == 'Top Fractal':
+            signal['Can Open'] = True
+            signal['Direction'] = '做空'
+            signal['Entry Price'] = last_three_klines.iloc[1]['Low']
+            signal['Stop Loss Price'] = last_three_klines.iloc[1]['High']
+        # 如果是底分型，那么开仓价为中间那根K线的最高价，止损价为最低价
+        elif fractal['Type'] == 'Bottom Fractal':
+            signal['Can Open'] = True
+            signal['Direction'] = '做多'
+            signal['Entry Price'] = last_three_klines.iloc[1]['High']
+            signal['Stop Loss Price'] = last_three_klines.iloc[1]['Low']
+    return signal
+
+
+def identify_fractal(df):
+    fractal = {'Type': None, 'Candles': None}
+    # 获取最后三根K线
+    last_three_rows = df.iloc[-3:]
+    high_prices = last_three_rows['High'].values
+    low_prices = last_three_rows['Low'].values
+    upper_bands = last_three_rows['Upper Band'].values
+    lower_bands = last_three_rows['Lower Band'].values
+
+    # 判断顶分型
+    if high_prices[1] > high_prices[0] and high_prices[1] > high_prices[2] and low_prices[1] > low_prices[0] and \
+            low_prices[1] > low_prices[2]:
+        # 判断是否触及布林带上轨
+        if high_prices[1] <= upper_bands[1]:
+            fractal['Type'] = 'Top Fractal'
+            fractal['Candles'] = last_three_rows
+
+    # 判断底分型
+    elif low_prices[1] < low_prices[0] and low_prices[1] < low_prices[2] and high_prices[1] < high_prices[0] and \
+            high_prices[1] < high_prices[2]:
+        # 判断是否触及布林带下轨
+        if low_prices[1] >= lower_bands[1]:
+            fractal['Type'] = 'Bottom Fractal'
+            fractal['Candles'] = last_three_rows
+
+    return fractal
+
+
+# 处理K线的包含关系
+def process_candlestick(df):
+    drop_rows = []
+    i = 0
+    while i < df.shape[0] - 1:
+        curr_row = df.iloc[i]
+        next_row = df.iloc[i + 1]
+        if (curr_row['High'] >= next_row['High'] and curr_row['Low'] <= next_row['Low']) or (
+                curr_row['High'] > next_row['High'] and curr_row['Low'] < next_row['Low']):
+            if curr_row['Close'] >= curr_row['Open']:
+                df.loc[df.index[i], 'High'] = max(curr_row['High'], next_row['High'])
+                df.loc[df.index[i], 'Low'] = min(curr_row['Low'], next_row['Low'])
+            else:
+                df.loc[df.index[i], 'High'] = min(curr_row['High'], next_row['High'])
+                df.loc[df.index[i], 'Low'] = max(curr_row['Low'], next_row['Low'])
+            drop_rows.append(df.index[i + 1])
+        i += 1
+    df = df.drop(drop_rows)
+    return df
 
 
 def get_data(symbol, interval):
