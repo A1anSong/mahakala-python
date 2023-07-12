@@ -132,14 +132,14 @@ def find_latest_center(df):
     for index, row in df_centered_notnull.iterrows():
         if row['center'] == 'start':
             if row['fractal'] == 'top':
-                latest_center = {'high_price': index['High']}
+                latest_center = {'high_price': row['High']}
             else:
-                latest_center = {'low_price': index['Low']}
+                latest_center = {'low_price': row['Low']}
         elif row['center'] == 'stop':
             if row['fractal'] == 'top':
-                latest_center['high_price'] = index['High']
+                latest_center['high_price'] = row['High']
             else:
-                latest_center['low_price'] = index['Low']
+                latest_center['low_price'] = row['Low']
 
     return latest_center
 
