@@ -40,20 +40,20 @@ def chan_analyze(interval):
             # 计算出开仓价到止损价之间的比例，取开仓价减去止损价的绝对值，除以开仓价，计算出止损比例，取百分比并保留2位小数
             stop_loss_ratio = round(
                 abs(signal['Entry Price'] - signal['Stop Loss Price']) / signal['Entry Price'] * 100, 2)
-            print('交易信号')
-            print(f'''交易对：{symbol['symbol']}
+            #             print('交易信号')
+            #             print(f'''交易对：{symbol['symbol']}
+            # 周期：{interval}
+            # 方向：{signal['Direction']}
+            # 开仓价：{signal['Entry Price']}
+            # 止损价：{signal['Stop Loss Price']}
+            # 止损比例：{stop_loss_ratio}%''')
+            # 发送飞书消息
+            feishu.send('交易信号', f'''交易对：{symbol['symbol']}
 周期：{interval}
 方向：{signal['Direction']}
 开仓价：{signal['Entry Price']}
 止损价：{signal['Stop Loss Price']}
 止损比例：{stop_loss_ratio}%''')
-            # 发送飞书消息
-            # feishu.send('交易信号', f'''交易对：{symbol['symbol']}
-    # 周期：{interval}
-    # 方向：{signal['Direction']}
-    # 开仓价：{signal['Entry Price']}
-    # 止损价：{signal['Stop Loss Price']}
-    # 止损比例：{stop_loss_ratio}%''')
     logger.info(f'分析{interval}周期K线完成')
 
 
@@ -76,10 +76,10 @@ def analyze_data(df):
     df_fractal = identify_fractal(df_merged)
     # 过滤掉无效的分型
     df_filtered = filter_fractals(df_fractal)
-    # # 找出中枢
-    # df_centered = find_centers(df_filtered)
+    # 找出中枢
+    df_centered = find_centers(df_filtered)
     # 判断是否有分型
-    fractal = check_signal(df_filtered)
+    fractal = check_signal(df_centered)
     # 如果fractal不为空，那么就是有信号
     if fractal is not None:
         signal['Can Open'] = True
@@ -97,6 +97,9 @@ def analyze_data(df):
 
 
 def check_signal(df):
+    last_center = find_latest_center(df)
+    if last_center is None:
+        return None
     # 获取倒数第二个K线
     second_last_row = df.iloc[-2]
 
@@ -104,15 +107,41 @@ def check_signal(df):
     if second_last_row['fractal'] is not None:
         # 顶分型，看价格最高点是否高出布林上轨
         if second_last_row['fractal'] == 'top':
+            if second_last_row['High'] < last_center['high_price']:
+                return None
             if second_last_row['High'] < second_last_row['Upper Band']:
                 return second_last_row
         # 底分型，看价格最高点是否低于布林下轨
         elif second_last_row['fractal'] == 'bottom':
+            if second_last_row['Low'] > last_center['low_price']:
+                return None
             if second_last_row['Low'] > second_last_row['Lower Band']:
                 return second_last_row
 
     # 没有明确的信号
     return None
+
+
+def find_latest_center(df):
+    # 过滤出center列不为空的行
+    df_centered_notnull = df.dropna(subset=['center'])
+
+    latest_center = None
+
+    # 遍历df_centered_notnull中的所有行，找到所有的中枢
+    for index, row in df_centered_notnull.iterrows():
+        if row['center'] == 'start':
+            if row['fractal'] == 'top':
+                latest_center = {'high_price': index['High']}
+            else:
+                latest_center = {'low_price': index['Low']}
+        elif row['center'] == 'stop':
+            if row['fractal'] == 'top':
+                latest_center['high_price'] = index['High']
+            else:
+                latest_center['low_price'] = index['Low']
+
+    return latest_center
 
 
 def find_centers(df):
