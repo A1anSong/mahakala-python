@@ -29,31 +29,31 @@ def chan_analyze(interval):
         df = df[:-1]
         signal = analyze_data(df)
         if signal['Can Open']:
-            # 取出当前交易对的价格小数点位数
-            precision = symbol['pricePrecision']
-            # 如果是做多，那么止损价要减去precision个小数点位数
-            if signal['Direction'] == '做空':
-                signal['Stop Loss Price'] = round(signal['Stop Loss Price'] - 0.1 ** precision, precision)
-            # 如果是做空，那么止损价要加上precision个小数点位数
-            elif signal['Direction'] == '做多':
-                signal['Stop Loss Price'] = round(signal['Stop Loss Price'] + 0.1 ** precision, precision)
+            # # 取出当前交易对的价格小数点位数
+            # precision = symbol['pricePrecision']
+            # # 如果是做多，那么止损价要减去precision个小数点位数
+            # if signal['Direction'] == 'Long':
+            #     signal['Stop Loss Price'] = round(signal['Stop Loss Price'] - 0.1 ** precision, precision)
+            # # 如果是做空，那么止损价要加上precision个小数点位数
+            # elif signal['Direction'] == 'Short':
+            #     signal['Stop Loss Price'] = round(signal['Stop Loss Price'] + 0.1 ** precision, precision)
             # 计算出开仓价到止损价之间的比例，取开仓价减去止损价的绝对值，除以开仓价，计算出止损比例，取百分比并保留2位小数
             stop_loss_ratio = round(
                 abs(signal['Entry Price'] - signal['Stop Loss Price']) / signal['Entry Price'] * 100, 2)
-            #             print('交易信号')
-            #             print(f'''交易对：{symbol['symbol']}
-            # 周期：{interval}
-            # 方向：{signal['Direction']}
-            # 开仓价：{signal['Entry Price']}
-            # 止损价：{signal['Stop Loss Price']}
-            # 止损比例：{stop_loss_ratio}%''')
-            # 发送飞书消息
-            feishu.send('交易信号', f'''交易对：{symbol['symbol']}
+            print('交易信号')
+            print(f'''交易对：{symbol['symbol']}
 周期：{interval}
 方向：{signal['Direction']}
 开仓价：{signal['Entry Price']}
 止损价：{signal['Stop Loss Price']}
 止损比例：{stop_loss_ratio}%''')
+            # 发送飞书消息
+            # feishu.send('交易信号', f'''交易对：{symbol['symbol']}
+    # 周期：{interval}
+    # 方向：{signal['Direction']}
+    # 开仓价：{signal['Entry Price']}
+    # 止损价：{signal['Stop Loss Price']}
+    # 止损比例：{stop_loss_ratio}%''')
     logger.info(f'分析{interval}周期K线完成')
 
 
@@ -76,18 +76,21 @@ def analyze_data(df):
     df_fractal = identify_fractal(df_merged)
     # 过滤掉无效的分型
     df_filtered = filter_fractals(df_fractal)
+    # # 找出中枢
+    # df_centered = find_centers(df_filtered)
     # 判断是否有分型
     fractal = check_signal(df_filtered)
     # 如果fractal不为空，那么就是有信号
     if fractal is not None:
         signal['Can Open'] = True
+        # 如果是顶分型，那么开仓价为中间那根K线的最低价，止损价为最高价
         if fractal['fractal'] == 'top':
-            signal['Direction'] = '做空'
+            signal['Direction'] = 'Short'
             signal['Entry Price'] = fractal['Low']
             signal['Stop Loss Price'] = fractal['High']
         # 如果是底分型，那么开仓价为中间那根K线的最高价，止损价为最低价
-        elif fractal['Type'] == 'Bottom Fractal':
-            signal['Direction'] = '做多'
+        elif fractal['fractal'] == 'bottom':
+            signal['Direction'] = 'Long'
             signal['Entry Price'] = fractal['High']
             signal['Stop Loss Price'] = fractal['Low']
     return signal
@@ -110,6 +113,60 @@ def check_signal(df):
 
     # 没有明确的信号
     return None
+
+
+def find_centers(df):
+    # 上一个中枢的顶和底
+    last_center = (0, 0)
+
+    # 在df中创建新的center列
+    df['center'] = None
+
+    # 过滤出有分型标记的数据
+    df_fractal = df.dropna(subset=['fractal'])
+
+    # 遍历有分型标记的数据
+    for i in range(df_fractal.shape[0] - 3):
+        if df_fractal['fractal'].iloc[i] == 'top':
+            if last_center[0] < df_fractal['High'].iloc[i] < last_center[1] \
+                    or last_center[0] < df_fractal['Low'].iloc[i + 1] < last_center[1]:
+                continue
+            # 中枢的顶是两个顶分型中最低的价格，中枢的底是两个底分型中最高的价格
+            center_high = min(df_fractal['High'].iloc[i], df_fractal['High'].iloc[i + 2])
+            center_low = max(df_fractal['Low'].iloc[i + 1], df_fractal['Low'].iloc[i + 3])
+            # 如果中枢的高点价格高于低点价格，那么中枢成立
+            if center_low < center_high:
+                if df_fractal['High'].iloc[i] == center_high:
+                    df.loc[df_fractal.index[i], 'center'] = 'start'
+                    if df_fractal['Low'].iloc[i + 1] == center_low:
+                        df.loc[df_fractal.index[[i + 1]], 'center'] = 'stop'
+                    else:
+                        df.loc[df_fractal.index[[i + 3]], 'center'] = 'stop'
+                else:
+                    df.loc[df_fractal.index[[i + 1]], 'center'] = 'start'
+                    df.loc[df_fractal.index[[i + 2]], 'center'] = 'stop'
+                last_center = (center_low, center_high)
+        if df_fractal['fractal'].iloc[i] == 'bottom':
+            if last_center[0] < df_fractal['Low'].iloc[i] < last_center[1] \
+                    or last_center[0] < df_fractal['High'].iloc[i + 1] < last_center[1]:
+                continue
+            # 中枢的顶是两个顶分型中最低的价格，中枢的底是两个底分型中最高的价格
+            center_high = min(df_fractal['High'].iloc[i + 1], df_fractal['High'].iloc[i + 3])
+            center_low = max(df_fractal['Low'].iloc[i], df_fractal['Low'].iloc[i + 2])
+            # 如果中枢的高点价格高于低点价格，那么中枢成立
+            if center_low < center_high:
+                if df_fractal['Low'].iloc[i] == center_low:
+                    df.loc[df_fractal.index[[i]], 'center'] = 'start'
+                    if df_fractal['High'].iloc[i + 1] == center_high:
+                        df.loc[df_fractal.index[[i + 1]], 'center'] = 'stop'
+                    else:
+                        df.loc[df_fractal.index[[i + 3]], 'center'] = 'stop'
+                else:
+                    df.loc[df_fractal.index[[i + 1]], 'center'] = 'start'
+                    df.loc[df_fractal.index[[i + 2]], 'center'] = 'stop'
+                last_center = (center_low, center_high)
+
+    return df
 
 
 def filter_fractals(df):
@@ -137,7 +194,7 @@ def filter_fractals(df):
             if row['fractal'] == last_valid_fractal['fractal']:
                 # 新的顶分型的高点比之前有效的顶分型的高点还要高
                 if row['fractal'] == 'top':
-                    if row['High'] >= last_valid_fractal['High']:
+                    if row['High'] > last_valid_fractal['High']:
                         df.loc[last_valid_fractal_index, 'fractal'] = None
                         last_valid_fractal = row
                         last_valid_fractal_index = index
@@ -145,7 +202,7 @@ def filter_fractals(df):
                         df.loc[index, 'fractal'] = None
                 # 新的底分型的低点比之前有效底分型的低点还要低
                 if row['fractal'] == 'bottom':
-                    if row['Low'] <= last_valid_fractal['Low']:
+                    if row['Low'] < last_valid_fractal['Low']:
                         df.loc[last_valid_fractal_index, 'fractal'] = None
                         last_valid_fractal = row
                         last_valid_fractal_index = index
@@ -185,6 +242,8 @@ def filter_fractals(df):
                                 pre_last_valid_fractal_index = None
                             else:
                                 df.loc[index, 'fractal'] = None
+                    else:
+                        df.loc[index, 'fractal'] = None
             else:
                 df.loc[index, 'fractal'] = None
 
@@ -293,30 +352,3 @@ def get_data(symbol, interval):
         df.columns = ['Open', 'High', 'Low', 'Close', 'Volume', 'index']
 
         return df
-
-# import mplfinance as mpf
-#
-# # 计算 MACD
-# exp12 = df['Close'].ewm(span=12, adjust=False).mean()
-# exp26 = df['Close'].ewm(span=26, adjust=False).mean()
-# DIF = exp12 - exp26
-# DEA = DIF.ewm(span=9, adjust=False).mean()
-# MACD = 2 * (DIF - DEA)
-#
-# # 计算布林带
-# mid_band = df['Close'].rolling(window=20).mean()
-# std_dev = df['Close'].rolling(window=20).std()
-# upper_band = mid_band + (std_dev * 2)
-# lower_band = mid_band - (std_dev * 2)
-#
-# # 创建 MACD 和布林带的附图
-# ap_DIF = mpf.make_addplot(DIF, panel=1, color='b', secondary_y=False)  # 将MACD设为面板0
-# ap_DEA = mpf.make_addplot(DEA, panel=1, color='y', secondary_y=False)
-# ap_MACD = mpf.make_addplot(MACD, panel=1, color='dimgray', secondary_y=False, type='bar')
-# ap_upper_band = mpf.make_addplot(upper_band, panel=0, color='red')  # 将布林带设为面板2
-# ap_lower_band = mpf.make_addplot(lower_band, panel=0, color='blue')
-# ap_mid_band = mpf.make_addplot(mid_band, panel=0, color='orange')
-#
-# # 绘制图表
-# mpf.plot(df, type='candle', style='binance', title=symbol, ylabel='Price ($)', volume=True, ylabel_lower='Volume',
-#          volume_panel=2, addplot=[ap_DIF, ap_DEA, ap_MACD, ap_upper_band, ap_lower_band, ap_mid_band])
