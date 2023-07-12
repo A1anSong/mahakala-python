@@ -170,12 +170,16 @@ def find_centers(df):
                 if df_fractal['High'].iloc[i] == center_high:
                     df.loc[df_fractal.index[i], 'center'] = 'start'
                     if df_fractal['Low'].iloc[i + 1] == center_low:
-                        df.loc[df_fractal.index[[i + 1]], 'center'] = 'stop'
+                        df.loc[df_fractal.index[i + 1], 'center'] = 'stop'
                     else:
-                        df.loc[df_fractal.index[[i + 3]], 'center'] = 'stop'
+                        df.loc[df_fractal.index[i + 3], 'center'] = 'stop'
                 else:
-                    df.loc[df_fractal.index[[i + 1]], 'center'] = 'start'
-                    df.loc[df_fractal.index[[i + 2]], 'center'] = 'stop'
+                    if df_fractal['Low'].iloc[i + 1] == center_low:
+                        df.loc[df_fractal.index[i + 1], 'center'] = 'start'
+                        df.loc[df_fractal.index[i + 2], 'center'] = 'stop'
+                    else:
+                        df.loc[df_fractal.index[i + 2], 'center'] = 'start'
+                        df.loc[df_fractal.index[i + 3], 'center'] = 'stop'
                 last_center = (center_low, center_high)
         if df_fractal['fractal'].iloc[i] == 'bottom':
             if last_center[0] < df_fractal['Low'].iloc[i] < last_center[1] \
@@ -189,14 +193,18 @@ def find_centers(df):
             # 如果中枢的高点价格高于低点价格，那么中枢成立
             if center_low < center_high:
                 if df_fractal['Low'].iloc[i] == center_low:
-                    df.loc[df_fractal.index[[i]], 'center'] = 'start'
+                    df.loc[df_fractal.index[i], 'center'] = 'start'
                     if df_fractal['High'].iloc[i + 1] == center_high:
-                        df.loc[df_fractal.index[[i + 1]], 'center'] = 'stop'
+                        df.loc[df_fractal.index[i + 1], 'center'] = 'stop'
                     else:
-                        df.loc[df_fractal.index[[i + 3]], 'center'] = 'stop'
+                        df.loc[df_fractal.index[i + 3], 'center'] = 'stop'
                 else:
-                    df.loc[df_fractal.index[[i + 1]], 'center'] = 'start'
-                    df.loc[df_fractal.index[[i + 2]], 'center'] = 'stop'
+                    if df_fractal['High'].iloc[i + 1] == center_high:
+                        df.loc[df_fractal.index[i + 1], 'center'] = 'start'
+                        df.loc[df_fractal.index[i + 2], 'center'] = 'stop'
+                    else:
+                        df.loc[df_fractal.index[i + 2], 'center'] = 'start'
+                        df.loc[df_fractal.index[i + 3], 'center'] = 'stop'
                 last_center = (center_low, center_high)
 
     return df
