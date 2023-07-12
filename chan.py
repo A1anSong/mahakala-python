@@ -24,7 +24,7 @@ interval_period = {
 
 def chan_analyze(interval):
     for symbol in binance_util.symbols:
-        df = get_data(symbol['symbol'], interval_period[interval])
+        df = get_data(symbol['symbol'], interval_period[interval], 1000)
         # 将df数据中最后一个数据删除
         df = df[:-1]
         signal = analyze_data(df)
@@ -124,7 +124,7 @@ def check_signal(df):
 
 def find_latest_center(df):
     # 过滤出center列不为空的行
-    df_centered_notnull = df.dropna(subset=['center'])
+    df_centered_notnull = df.dropna(subset=['fractal'])
 
     latest_center = None
 
@@ -158,7 +158,9 @@ def find_centers(df):
     for i in range(df_fractal.shape[0] - 3):
         if df_fractal['fractal'].iloc[i] == 'top':
             if last_center[0] < df_fractal['High'].iloc[i] < last_center[1] \
-                    or last_center[0] < df_fractal['Low'].iloc[i + 1] < last_center[1]:
+                    or last_center[0] < df_fractal['Low'].iloc[i + 1] < last_center[1]\
+                    or last_center[0] < df_fractal['High'].iloc[i + 2] < last_center[1]\
+                    or last_center[0] < df_fractal['Low'].iloc[i + 3] < last_center[1]:
                 continue
             # 中枢的顶是两个顶分型中最低的价格，中枢的底是两个底分型中最高的价格
             center_high = min(df_fractal['High'].iloc[i], df_fractal['High'].iloc[i + 2])
@@ -177,7 +179,9 @@ def find_centers(df):
                 last_center = (center_low, center_high)
         if df_fractal['fractal'].iloc[i] == 'bottom':
             if last_center[0] < df_fractal['Low'].iloc[i] < last_center[1] \
-                    or last_center[0] < df_fractal['High'].iloc[i + 1] < last_center[1]:
+                    or last_center[0] < df_fractal['High'].iloc[i + 1] < last_center[1]\
+                    or last_center[0] < df_fractal['Low'].iloc[i + 2] < last_center[1]\
+                    or last_center[0] < df_fractal['High'].iloc[i + 3] < last_center[1]:
                 continue
             # 中枢的顶是两个顶分型中最低的价格，中枢的底是两个底分型中最高的价格
             center_high = min(df_fractal['High'].iloc[i + 1], df_fractal['High'].iloc[i + 3])
@@ -343,7 +347,7 @@ def add_bollinger_bands(df):
     return df
 
 
-def get_data(symbol, interval):
+def get_data(symbol, interval, amount):
     # 开启一个新的会话(session)
     with Session() as session:
         # SQL查询
@@ -359,7 +363,7 @@ def get_data(symbol, interval):
         	        "{symbol}"
                 GROUP BY period
                 ORDER BY period DESC
-                LIMIT 1000;
+                LIMIT {amount};
             '''
 
         # 使用pandas的read_sql_query函数直接将SQL查询结果转换为DataFrame
