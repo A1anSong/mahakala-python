@@ -253,9 +253,6 @@ def filter_fractals(df):
     # 设置一个标记来跟踪最后一个有效的分型是顶分型还是底分型
     last_valid_fractal = None
     last_valid_fractal_index = None
-    # 再设置一个标记来跟踪倒数第二个有效的分型是顶分型还是底分型
-    pre_last_valid_fractal = None
-    pre_last_valid_fractal_index = None
 
     # 找出所有的分型
     fractals = df.loc[df['fractal'].notnull()].copy()
@@ -269,8 +266,9 @@ def filter_fractals(df):
         if last_valid_fractal is None:
             last_valid_fractal = row
             last_valid_fractal_index = index
+        # 检查当前分型是否满足有效性规则
         else:
-            # 检查当前分型是否满足有效性规则
+            # 如果当前分型和上一个分型是同一类型的
             if row['fractal'] == last_valid_fractal['fractal']:
                 # 新的顶分型的高点比之前有效的顶分型的高点还要高
                 if row['fractal'] == 'top':
@@ -289,7 +287,7 @@ def filter_fractals(df):
                     else:
                         df.loc[index, 'fractal'] = None
             # 顶分型的最高点必须高于前一个底分型的最高点
-            # 底分型的低点必须低于前一个顶分型的低点
+            # 底分型的最低点必须低于前一个顶分型的最低点
             elif ((row['fractal'] == 'top' and row['High'] >
                    df.loc[last_valid_fractal['prev_row']:last_valid_fractal['next_row'], 'High'].max()) or
                   (row['fractal'] == 'bottom' and row['Low'] <
@@ -299,29 +297,7 @@ def filter_fractals(df):
                     pre_last_valid_fractal, last_valid_fractal = last_valid_fractal, row
                     pre_last_valid_fractal_index, last_valid_fractal_index = last_valid_fractal_index, index
                 else:
-                    if pre_last_valid_fractal is not None:
-                        if row['fractal'] == 'top':
-                            if row['High'] > pre_last_valid_fractal['High']:
-                                df.loc[pre_last_valid_fractal_index, 'fractal'] = None
-                                df.loc[last_valid_fractal_index, 'fractal'] = None
-                                last_valid_fractal = row
-                                last_valid_fractal_index = index
-                                pre_last_valid_fractal = None
-                                pre_last_valid_fractal_index = None
-                            else:
-                                df.loc[index, 'fractal'] = None
-                        if row['fractal'] == 'bottom':
-                            if row['Low'] < pre_last_valid_fractal['Low']:
-                                df.loc[pre_last_valid_fractal_index, 'fractal'] = None
-                                df.loc[last_valid_fractal_index, 'fractal'] = None
-                                last_valid_fractal = row
-                                last_valid_fractal_index = index
-                                pre_last_valid_fractal = None
-                                pre_last_valid_fractal_index = None
-                            else:
-                                df.loc[index, 'fractal'] = None
-                    else:
-                        df.loc[index, 'fractal'] = None
+                    df.loc[index, 'fractal'] = None
             else:
                 df.loc[index, 'fractal'] = None
 
