@@ -114,18 +114,18 @@ def check_signal(df):
             # 如果上一个中枢类型不是上升中枢，那么就不是有效的信号
             if last_center['center_type'] != 'long':
                 return None
-            if second_last_row['High'] < extreme_price:
+            if second_last_row['High'] <= extreme_price:
                 return None
-            if second_last_row['High'] < second_last_row['Upper Band']:
+            if second_last_row['High'] <= second_last_row['Upper Band']:
                 return second_last_row
         # 底分型，看价格最高点是否低于布林下轨
         elif second_last_row['fractal'] == 'bottom':
             # 如果上一个中枢类型不是下降中枢，那么就不是有效的信号
             if last_center['center_type'] != 'short':
                 return None
-            if second_last_row['Low'] > extreme_price:
+            if second_last_row['Low'] >= extreme_price:
                 return None
-            if second_last_row['Low'] > second_last_row['Lower Band']:
+            if second_last_row['Low'] >= second_last_row['Lower Band']:
                 return second_last_row
 
     # 没有明确的信号
@@ -145,7 +145,7 @@ def check_extreme_price(df, last_center):
             if row['High'] > extreme_price:
                 extreme_price = row['High']
         if last_center['center_type'] == 'short':
-            if row['Low'] < last_center['low_price']:
+            if row['Low'] < extreme_price:
                 extreme_price = row['Low']
     return extreme_price
 
