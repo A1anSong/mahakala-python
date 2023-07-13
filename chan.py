@@ -158,8 +158,8 @@ def find_centers(df):
     for i in range(df_fractal.shape[0] - 3):
         if df_fractal['fractal'].iloc[i] == 'top':
             if last_center[0] < df_fractal['High'].iloc[i] < last_center[1] \
-                    or last_center[0] < df_fractal['Low'].iloc[i + 1] < last_center[1]\
-                    or last_center[0] < df_fractal['High'].iloc[i + 2] < last_center[1]\
+                    or last_center[0] < df_fractal['Low'].iloc[i + 1] < last_center[1] \
+                    or last_center[0] < df_fractal['High'].iloc[i + 2] < last_center[1] \
                     or last_center[0] < df_fractal['Low'].iloc[i + 3] < last_center[1]:
                 continue
             # 中枢的顶是两个顶分型中最低的价格，中枢的底是两个底分型中最高的价格
@@ -180,11 +180,12 @@ def find_centers(df):
                     else:
                         df.loc[df_fractal.index[i + 2], 'center'] = 'start'
                         df.loc[df_fractal.index[i + 3], 'center'] = 'stop'
-                last_center = (center_low, center_high)
+                last_center = (min(df_fractal['Low'].iloc[i + 1], df_fractal['Low'].iloc[i + 3]),
+                               max(df_fractal['High'].iloc[i], df_fractal['High'].iloc[i + 2]))
         if df_fractal['fractal'].iloc[i] == 'bottom':
             if last_center[0] < df_fractal['Low'].iloc[i] < last_center[1] \
-                    or last_center[0] < df_fractal['High'].iloc[i + 1] < last_center[1]\
-                    or last_center[0] < df_fractal['Low'].iloc[i + 2] < last_center[1]\
+                    or last_center[0] < df_fractal['High'].iloc[i + 1] < last_center[1] \
+                    or last_center[0] < df_fractal['Low'].iloc[i + 2] < last_center[1] \
                     or last_center[0] < df_fractal['High'].iloc[i + 3] < last_center[1]:
                 continue
             # 中枢的顶是两个顶分型中最低的价格，中枢的底是两个底分型中最高的价格
@@ -205,7 +206,8 @@ def find_centers(df):
                     else:
                         df.loc[df_fractal.index[i + 2], 'center'] = 'start'
                         df.loc[df_fractal.index[i + 3], 'center'] = 'stop'
-                last_center = (center_low, center_high)
+                last_center = (min(df_fractal['Low'].iloc[i], df_fractal['Low'].iloc[i + 2]),
+                               max(df_fractal['High'].iloc[i + 1], df_fractal['High'].iloc[i + 3]))
 
     return df
 
