@@ -180,6 +180,10 @@ def find_centers(df):
             center_low = max(df_fractal['Low'].iloc[i + 1], df_fractal['Low'].iloc[i + 3])
             # 如果中枢的高点价格高于低点价格，那么中枢成立
             if center_low < center_high:
+                if last_center == (0, 0):
+                    last_center = (min(df_fractal['Low'].iloc[i + 1], df_fractal['Low'].iloc[i + 3]),
+                                   max(df_fractal['High'].iloc[i], df_fractal['High'].iloc[i + 2]))
+                    continue
                 if df_fractal['High'].iloc[i] == center_high:
                     df.loc[df_fractal.index[i], 'center'] = 'start'
                     df.loc[df_fractal.index[i], 'center_type'] = 'long'
@@ -209,6 +213,10 @@ def find_centers(df):
             center_low = max(df_fractal['Low'].iloc[i], df_fractal['Low'].iloc[i + 2])
             # 如果中枢的高点价格高于低点价格，那么中枢成立
             if center_low < center_high:
+                if last_center == (0, 0):
+                    last_center = (min(df_fractal['Low'].iloc[i], df_fractal['Low'].iloc[i + 2]),
+                                   max(df_fractal['High'].iloc[i + 1], df_fractal['High'].iloc[i + 3]))
+                    continue
                 if df_fractal['Low'].iloc[i] == center_low:
                     df.loc[df_fractal.index[i], 'center'] = 'start'
                     df.loc[df_fractal.index[i], 'center_type'] = 'short'
@@ -239,6 +247,9 @@ def filter_fractals(df):
     # 设置一个标记来跟踪最后一个有效的分型是顶分型还是底分型
     last_valid_fractal = None
     last_valid_fractal_index = None
+    # 再设置一个标记来跟踪倒数第二个有效的分型是顶分型还是底分型
+    pre_last_valid_fractal = None
+    pre_last_valid_fractal_index = None
 
     # 找出所有的分型
     fractals = df.loc[df['fractal'].notnull()].copy()
@@ -272,18 +283,38 @@ def filter_fractals(df):
                         last_valid_fractal_index = index
                     else:
                         df.loc[index, 'fractal'] = None
-            # 顶分型的最高点必须高于前一个底分型的最高点
-            # 底分型的最低点必须低于前一个顶分型的最低点
-            elif ((row['fractal'] == 'top' and row['High'] >
-                   df.loc[last_valid_fractal['prev_row']:last_valid_fractal['next_row'], 'High'].max()) or
-                  (row['fractal'] == 'bottom' and row['Low'] <
-                   df.loc[last_valid_fractal['prev_row']:last_valid_fractal['next_row'], 'Low'].min())):
+            # 顶分型的最高点必须高于前一个底分型的最低点
+            # 底分型的最低点必须低于前一个顶分型的最高点
+            elif ((row['fractal'] == 'top' and row['High'] > last_valid_fractal['Low']) or
+                  (row['fractal'] == 'bottom' and row['Low'] < last_valid_fractal['High'])):
                 # 两个有效分型之间必须有至少一根K线
                 if df.loc[row['prev_row'], 'index'] - df.loc[last_valid_fractal['next_row'], 'index'] > 1:
                     pre_last_valid_fractal, last_valid_fractal = last_valid_fractal, row
                     pre_last_valid_fractal_index, last_valid_fractal_index = last_valid_fractal_index, index
                 else:
-                    df.loc[index, 'fractal'] = None
+                    if pre_last_valid_fractal is not None:
+                        if row['fractal'] == 'top':
+                            if row['High'] > pre_last_valid_fractal['High']:
+                                df.loc[pre_last_valid_fractal_index, 'fractal'] = None
+                                df.loc[last_valid_fractal_index, 'fractal'] = None
+                                last_valid_fractal = row
+                                last_valid_fractal_index = index
+                                pre_last_valid_fractal = None
+                                pre_last_valid_fractal_index = None
+                            else:
+                                df.loc[index, 'fractal'] = None
+                        if row['fractal'] == 'bottom':
+                            if row['Low'] < pre_last_valid_fractal['Low']:
+                                df.loc[pre_last_valid_fractal_index, 'fractal'] = None
+                                df.loc[last_valid_fractal_index, 'fractal'] = None
+                                last_valid_fractal = row
+                                last_valid_fractal_index = index
+                                pre_last_valid_fractal = None
+                                pre_last_valid_fractal_index = None
+                            else:
+                                df.loc[index, 'fractal'] = None
+                    else:
+                        df.loc[index, 'fractal'] = None
             else:
                 df.loc[index, 'fractal'] = None
 
@@ -319,10 +350,10 @@ def merge_candle(df):
         next_row = df.iloc[j]
         while i > 0 and ((curr_row['High'] >= next_row['High'] and curr_row['Low'] <= next_row['Low']) or (
                 curr_row['High'] <= next_row['High'] and curr_row['Low'] >= next_row['Low'])):
-            drop_index = i
+            drop_index = j
             # 如果当前K线被下一根K线包含，那么就删除当前K线
             if curr_row['High'] <= next_row['High'] and curr_row['Low'] >= next_row['Low']:
-                drop_index = j
+                drop_index = i
             # 如果是上升
             if curr_row['High'] >= df.iloc[i - 1]['High']:
                 df.loc[df.index[drop_index], 'High'] = max(curr_row['High'], next_row['High'])
