@@ -103,6 +103,7 @@ def check_signal(df):
     last_center = find_latest_center(df)
     if last_center is None:
         return None
+    extreme_price = check_extreme_price(df, last_center)
     # 获取倒数第二个K线
     second_last_row = df.iloc[-2]
 
@@ -113,7 +114,7 @@ def check_signal(df):
             # 如果上一个中枢类型不是上升中枢，那么就不是有效的信号
             if last_center['center_type'] != 'long':
                 return None
-            if second_last_row['High'] < last_center['high_price']:
+            if second_last_row['High'] < extreme_price:
                 return None
             if second_last_row['High'] < second_last_row['Upper Band']:
                 return second_last_row
@@ -122,13 +123,31 @@ def check_signal(df):
             # 如果上一个中枢类型不是下降中枢，那么就不是有效的信号
             if last_center['center_type'] != 'short':
                 return None
-            if second_last_row['Low'] > last_center['low_price']:
+            if second_last_row['Low'] > extreme_price:
                 return None
             if second_last_row['Low'] > second_last_row['Lower Band']:
                 return second_last_row
 
     # 没有明确的信号
     return None
+
+
+def check_extreme_price(df, last_center):
+    df_excluding_last_two_rows = df.iloc[:-2]
+    start_index = last_center['index']
+    extreme_price = None
+    if last_center['center_type'] == 'long':
+        extreme_price = 0
+    if last_center['center_type'] == 'short':
+        extreme_price = 999999
+    for index, row in df_excluding_last_two_rows.loc[start_index:].iterrows():
+        if last_center['center_type'] == 'long':
+            if row['High'] > extreme_price:
+                extreme_price = row['High']
+        if last_center['center_type'] == 'short':
+            if row['Low'] < last_center['low_price']:
+                extreme_price = row['Low']
+    return extreme_price
 
 
 def find_latest_center(df):
@@ -140,15 +159,8 @@ def find_latest_center(df):
     # 遍历df_centered_notnull中的所有行，找到所有的中枢
     for index, row in df_centered_notnull.iterrows():
         if row['center'] == 'start':
-            if row['fractal'] == 'top':
-                latest_center = {'high_price': row['High']}
-            else:
-                latest_center = {'low_price': row['Low']}
+            latest_center = {'index': index}
         elif row['center'] == 'stop':
-            if row['fractal'] == 'top':
-                latest_center['high_price'] = row['High']
-            else:
-                latest_center['low_price'] = row['Low']
             latest_center['center_type'] = row['center_type']
 
     return latest_center
