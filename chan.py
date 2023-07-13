@@ -156,11 +156,7 @@ def find_latest_center(df):
 
 def find_centers(df):
     # 上一个中枢的最高价和最低价
-    last_long_center = (0, 0)
-    last_short_center = (0, 0)
-
-    # 上一个中枢的类型
-    last_center_type = None
+    last_center = (0, 0)
 
     # 在df中创建新的center列
     df['center'] = None
@@ -171,15 +167,14 @@ def find_centers(df):
 
     # 遍历有分型标记的数据
     for i in range(df_fractal.shape[0] - 3):
+        # 判断这个中枢是否包含在上一个中枢中
+        if last_center[0] < df_fractal['High'].iloc[i] < last_center[1] \
+                or last_center[0] < df_fractal['Low'].iloc[i + 1] < last_center[1] \
+                or last_center[0] < df_fractal['High'].iloc[i + 2] < last_center[1] \
+                or last_center[0] < df_fractal['Low'].iloc[i + 3] < last_center[1]:
+            continue
         # 如果是第一个分型是顶分型，那么就是上升中枢
         if df_fractal['fractal'].iloc[i] == 'top':
-            # 如果上一个中枢是上升中枢，那么判断这个中枢是否包含在上一个中枢中
-            if last_center_type == 'long':
-                if last_long_center[0] < df_fractal['High'].iloc[i] < last_long_center[1] \
-                        or last_long_center[0] < df_fractal['Low'].iloc[i + 1] < last_long_center[1] \
-                        or last_long_center[0] < df_fractal['High'].iloc[i + 2] < last_long_center[1] \
-                        or last_long_center[0] < df_fractal['Low'].iloc[i + 3] < last_long_center[1]:
-                    continue
             # 中枢的顶是两个顶分型中最低的价格，中枢的底是两个底分型中最高的价格
             center_high = min(df_fractal['High'].iloc[i], df_fractal['High'].iloc[i + 2])
             center_low = max(df_fractal['Low'].iloc[i + 1], df_fractal['Low'].iloc[i + 3])
@@ -205,18 +200,10 @@ def find_centers(df):
                         df.loc[df_fractal.index[i + 2], 'center_type'] = 'long'
                         df.loc[df_fractal.index[i + 3], 'center'] = 'stop'
                         df.loc[df_fractal.index[i + 3], 'center_type'] = 'long'
-                last_long_center = (min(df_fractal['Low'].iloc[i + 1], df_fractal['Low'].iloc[i + 3]),
-                                    max(df_fractal['High'].iloc[i], df_fractal['High'].iloc[i + 2]))
-                last_center_type = 'long'
+                last_center = (min(df_fractal['Low'].iloc[i + 1], df_fractal['Low'].iloc[i + 3]),
+                               max(df_fractal['High'].iloc[i], df_fractal['High'].iloc[i + 2]))
         # 如果是第一个分型是底分型，那么就是下降中枢
         if df_fractal['fractal'].iloc[i] == 'bottom':
-            # 如果上一个中枢是下降中枢，那么判断这个中枢是否包含在上一个中枢中
-            if last_center_type == 'short':
-                if last_short_center[0] < df_fractal['Low'].iloc[i] < last_short_center[1] \
-                        or last_short_center[0] < df_fractal['High'].iloc[i + 1] < last_short_center[1] \
-                        or last_short_center[0] < df_fractal['Low'].iloc[i + 2] < last_short_center[1] \
-                        or last_short_center[0] < df_fractal['High'].iloc[i + 3] < last_short_center[1]:
-                    continue
             # 中枢的顶是两个顶分型中最低的价格，中枢的底是两个底分型中最高的价格
             center_high = min(df_fractal['High'].iloc[i + 1], df_fractal['High'].iloc[i + 3])
             center_low = max(df_fractal['Low'].iloc[i], df_fractal['Low'].iloc[i + 2])
@@ -242,9 +229,8 @@ def find_centers(df):
                         df.loc[df_fractal.index[i + 2], 'center_type'] = 'short'
                         df.loc[df_fractal.index[i + 3], 'center'] = 'stop'
                         df.loc[df_fractal.index[i + 3], 'center_type'] = 'short'
-                last_short_center = (min(df_fractal['Low'].iloc[i], df_fractal['Low'].iloc[i + 2]),
-                                     max(df_fractal['High'].iloc[i + 1], df_fractal['High'].iloc[i + 3]))
-                last_center_type = 'short'
+                last_center = (min(df_fractal['Low'].iloc[i], df_fractal['Low'].iloc[i + 2]),
+                               max(df_fractal['High'].iloc[i + 1], df_fractal['High'].iloc[i + 3]))
 
     return df
 
