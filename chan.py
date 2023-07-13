@@ -167,14 +167,14 @@ def find_centers(df):
 
     # 遍历有分型标记的数据
     for i in range(df_fractal.shape[0] - 3):
-        # 判断这个中枢是否包含在上一个中枢中
-        if last_center[0] < df_fractal['High'].iloc[i] < last_center[1] \
-                or last_center[0] < df_fractal['Low'].iloc[i + 1] < last_center[1] \
-                or last_center[0] < df_fractal['High'].iloc[i + 2] < last_center[1] \
-                or last_center[0] < df_fractal['Low'].iloc[i + 3] < last_center[1]:
-            continue
         # 如果是第一个分型是顶分型，那么就是上升中枢
         if df_fractal['fractal'].iloc[i] == 'top':
+            # 判断这个中枢是否包含在上一个中枢中
+            if last_center[0] < df_fractal['High'].iloc[i] < last_center[1] \
+                    or last_center[0] < df_fractal['Low'].iloc[i + 1] < last_center[1] \
+                    or last_center[0] < df_fractal['High'].iloc[i + 2] < last_center[1] \
+                    or last_center[0] < df_fractal['Low'].iloc[i + 3] < last_center[1]:
+                continue
             # 中枢的顶是两个顶分型中最低的价格，中枢的底是两个底分型中最高的价格
             center_high = min(df_fractal['High'].iloc[i], df_fractal['High'].iloc[i + 2])
             center_low = max(df_fractal['Low'].iloc[i + 1], df_fractal['Low'].iloc[i + 3])
@@ -208,6 +208,12 @@ def find_centers(df):
                                max(df_fractal['High'].iloc[i], df_fractal['High'].iloc[i + 2]))
         # 如果是第一个分型是底分型，那么就是下降中枢
         if df_fractal['fractal'].iloc[i] == 'bottom':
+            # 判断这个中枢是否包含在上一个中枢中
+            if last_center[0] < df_fractal['Low'].iloc[i] < last_center[1] \
+                    or last_center[0] < df_fractal['High'].iloc[i + 1] < last_center[1] \
+                    or last_center[0] < df_fractal['Low'].iloc[i + 2] < last_center[1] \
+                    or last_center[0] < df_fractal['High'].iloc[i + 3] < last_center[1]:
+                continue
             # 中枢的顶是两个顶分型中最低的价格，中枢的底是两个底分型中最高的价格
             center_high = min(df_fractal['High'].iloc[i + 1], df_fractal['High'].iloc[i + 3])
             center_low = max(df_fractal['Low'].iloc[i], df_fractal['Low'].iloc[i + 2])
