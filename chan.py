@@ -31,27 +31,11 @@ def chan_analyze(interval):
         df = df[:-1]
         signal = analyze_data(df)
         if signal['Can Open']:
-            # # 取出当前交易对的价格小数点位数
-            # precision = symbol['pricePrecision']
-            # # 如果是做多，那么止损价要减去precision个小数点位数
-            # if signal['Direction'] == 'Long':
-            #     signal['Stop Loss Price'] = round(signal['Stop Loss Price'] - 0.1 ** precision, precision)
-            # # 如果是做空，那么止损价要加上precision个小数点位数
-            # elif signal['Direction'] == 'Short':
-            #     signal['Stop Loss Price'] = round(signal['Stop Loss Price'] + 0.1 ** precision, precision)
             # 计算出开仓价到止损价之间的比例，取开仓价减去止损价的绝对值，除以开仓价，计算出止损比例，取百分比并保留2位小数
             stop_loss_ratio = round(
                 abs(signal['Entry Price'] - signal['Stop Loss Price']) / signal['Entry Price'] * 100, 2)
-            #             print('交易信号')
-            #             print(f'''交易对：{symbol['symbol']}
-            # 周期：{interval}
-            # 方向：{signal['Direction']}
-            # 开仓价：{signal['Entry Price']}
-            # 止损价：{signal['Stop Loss Price']}
-            # 止损比例：{stop_loss_ratio}%''')
             # 发送飞书消息
-            feishu.send('交易信号', f'''交易对：{symbol['symbol']}
-周期：{interval}
+            feishu.send('交易信号', f'''交易对："{symbol['symbol']}"在"{interval}"周期出现交易信号
 方向：{signal['Direction']}
 开仓价：{signal['Entry Price']}
 止损价：{signal['Stop Loss Price']}
@@ -73,6 +57,8 @@ def analyze_data(df):
 
     # 先将布林带数值计算出来
     df = add_bollinger_bands(df)
+    # 再将MACD数值计算出来
+    df = add_macd(df)
     # 处理K线的包含关系
     df_merged = merge_candle(df)
     # 判断是否有分型
@@ -396,6 +382,20 @@ def merge_candle(df):
                 break
         i = j
     df = df.drop(drop_rows)
+    return df
+
+
+def add_macd(df):
+    # 计算快速移动平均线
+    df['Fast EMA'] = df['Close'].ewm(span=12, adjust=False).mean()
+    # 计算慢速移动平均线
+    df['Slow EMA'] = df['Close'].ewm(span=26, adjust=False).mean()
+    # 计算离差值
+    df['DIF'] = df['Fast EMA'] - df['Slow EMA']
+    # 计算离差平均值
+    df['DEA'] = df['DIF'].ewm(span=9, adjust=False).mean()
+    # 计算MACD柱状图
+    df['MACD'] = 2 * (df['DIF'] - df['DEA'])
     return df
 
 

@@ -1,5 +1,4 @@
 import itertools
-import time
 from datetime import datetime, timezone
 
 from binance.um_futures import UMFutures
