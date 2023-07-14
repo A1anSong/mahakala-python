@@ -354,25 +354,25 @@ def merge_candle(df):
         next_row = df.iloc[j]
         while i > 0 and ((curr_row['High'] >= next_row['High'] and curr_row['Low'] <= next_row['Low']) or (
                 curr_row['High'] <= next_row['High'] and curr_row['Low'] >= next_row['Low'])):
+            keep_index = i
             drop_index = j
             # 如果当前K线被下一根K线包含，那么就删除当前K线
             if curr_row['High'] <= next_row['High'] and curr_row['Low'] >= next_row['Low']:
+                keep_index = j
                 drop_index = i
+            df.loc[df.index[keep_index], 'High'] = max(curr_row['High'], next_row['High'])
+            df.loc[df.index[keep_index], 'Low'] = min(curr_row['Low'], next_row['Low'])
+            df.loc[df.index[keep_index], 'Volume'] = curr_row['Volume'] + next_row['Volume']
             # 如果是上升
             if curr_row['High'] >= df.iloc[i - 1]['High']:
-                df.loc[df.index[drop_index], 'High'] = max(curr_row['High'], next_row['High'])
-                df.loc[df.index[drop_index], 'Low'] = max(curr_row['Low'], next_row['Low'])
-                df.loc[df.index[drop_index], 'Open'] = df.loc[df.index[drop_index], 'Low']
-                df.loc[df.index[drop_index], 'Close'] = df.loc[df.index[drop_index], 'High']
+                df.loc[df.index[keep_index], 'Open'] = df.loc[df.index[keep_index], 'Low']
+                df.loc[df.index[keep_index], 'Close'] = df.loc[df.index[keep_index], 'High']
             # 如果是下降
             else:
-                df.loc[df.index[drop_index], 'High'] = min(curr_row['High'], next_row['High'])
-                df.loc[df.index[drop_index], 'Low'] = min(curr_row['Low'], next_row['Low'])
-                df.loc[df.index[drop_index], 'Open'] = df.loc[df.index[drop_index], 'High']
-                df.loc[df.index[drop_index], 'Close'] = df.loc[df.index[drop_index], 'Low']
-            df.loc[df.index[drop_index], 'Volume'] = curr_row['Volume'] + next_row['Volume']
+                df.loc[df.index[keep_index], 'Open'] = df.loc[df.index[keep_index], 'High']
+                df.loc[df.index[keep_index], 'Close'] = df.loc[df.index[keep_index], 'Low']
             drop_rows.append(df.index[drop_index])
-            if drop_index == j:
+            if drop_index == i:
                 i += 1
             if j < df.shape[0] - 1:
                 j += 1
