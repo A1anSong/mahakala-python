@@ -18,6 +18,13 @@ symbols_set = set()
 first_time = True
 
 
+# 获取资金费率
+def get_last_funding_rate(symbol):
+    premium_index = um_futures_client.mark_price(symbol)
+    last_funding_rate = round(float(premium_index['lastFundingRate']) * 100, 4)
+    return format(last_funding_rate, '.4f')
+
+
 # 获取币安交易信息
 def get_binance_info():
     global symbols

@@ -34,12 +34,14 @@ def chan_analyze(interval):
             # 计算出开仓价到止损价之间的比例，取开仓价减去止损价的绝对值，除以开仓价，计算出止损比例，取百分比并保留2位小数
             stop_loss_ratio = round(
                 abs(signal['Entry Price'] - signal['Stop Loss Price']) / signal['Entry Price'] * 100, 2)
+            last_funding_rate = binance_util.get_last_funding_rate(symbol['symbol'])
             # 发送飞书消息
             feishu.send('交易信号', f'''交易对："{symbol['symbol']}"在"{interval}"周期出现交易信号
 方向：{signal['Direction']}
 开仓价：{signal['Entry Price']}
 止损价：{signal['Stop Loss Price']}
 止损比例：{stop_loss_ratio}%
+资金费率：{last_funding_rate}%
 时间：{pd.Timestamp('now').strftime('%Y年%m月%d日 %H时%M分%S秒')}''')
     logger.info(f'分析{interval}周期K线完成')
 
