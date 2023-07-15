@@ -62,26 +62,30 @@ def add_rectangles(df):
     rectangles_short = []
 
     # 遍历df_centered_long中的所有行，找到所有的中枢
+    start_time = None
     for index, row in df_centered_long.iterrows():
         if row['center_type_long'] == 'start':
             start_time = index
             y1 = row['center_price']
         elif row['center_type_long'] == 'stop':
-            stop_time = index
-            where_values = (df.index >= start_time) & (df.index <= stop_time)
-            rectangle = dict(y1=y1, y2=row['center_price'], where=where_values, alpha=0.4, color='g')
-            rectangles_long.append(rectangle)
+            if start_time is not None:
+                stop_time = index
+                where_values = (df.index >= start_time) & (df.index <= stop_time)
+                rectangle = dict(y1=y1, y2=row['center_price'], where=where_values, alpha=0.4, color='g')
+                rectangles_long.append(rectangle)
 
     # 遍历df_centered_short中的所有行，找到所有的中枢
+    start_time = None
     for index, row in df_centered_short.iterrows():
         if row['center_type_short'] == 'start':
             start_time = index
             y1 = row['center_price']
         elif row['center_type_short'] == 'stop':
-            stop_time = index
-            where_values = (df.index >= start_time) & (df.index <= stop_time)
-            rectangle = dict(y1=y1, y2=row['center_price'], where=where_values, alpha=0.4, color='r')
-            rectangles_short.append(rectangle)
+            if start_time is not None:
+                stop_time = index
+                where_values = (df.index >= start_time) & (df.index <= stop_time)
+                rectangle = dict(y1=y1, y2=row['center_price'], where=where_values, alpha=0.4, color='r')
+                rectangles_short.append(rectangle)
 
     rectangles = rectangles_long + rectangles_short
 
@@ -126,8 +130,8 @@ def add_plots(df):
     tops_series[tops] = df['High'][tops]
     bottoms_series[bottoms] = df['Low'][bottoms]
     # 使用make_addplot()来创建额外的绘图，用于标记顶分型和底分型
-    addplot_tops = mpf.make_addplot(tops_series, scatter=True, markersize=20, marker='v', color='r')
-    addplot_bottoms = mpf.make_addplot(bottoms_series, scatter=True, markersize=20, marker='^', color='g')
+    addplot_tops = mpf.make_addplot(tops_series, scatter=True, markersize=50, marker='v', color='r')
+    addplot_bottoms = mpf.make_addplot(bottoms_series, scatter=True, markersize=50, marker='^', color='g')
 
     addplot_all = [ap_mid_band, ap_upper_band, ap_lower_band, ap_dif, ap_dea, ap_macd, addplot_tops, addplot_bottoms]
 
