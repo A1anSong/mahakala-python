@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 import pandas as pd
+import mplfinance as mpf
 
 import feishu
 from core import config, logger
@@ -36,7 +37,8 @@ def chan_analyze(interval):
                 abs(signal['Entry Price'] - signal['Stop Loss Price']) / signal['Entry Price'] * 100, 2)
             last_funding_rate = binance_util.get_last_funding_rate(symbol['symbol'])
             # 发送飞书消息
-            feishu.send('交易信号', f'''交易对："{symbol['symbol']}"在"{interval}"周期出现交易信号
+            feishu.send('交易信号', f'''交易对："{symbol['symbol']}"出现了交易信号
+周期：{interval}
 方向：{signal['Direction']}
 开仓价：{signal['Entry Price']}
 止损价：{signal['Stop Loss Price']}
@@ -44,6 +46,89 @@ def chan_analyze(interval):
 资金费率：{last_funding_rate}%
 时间：{pd.Timestamp('now').strftime('%Y年%m月%d日 %H时%M分%S秒')}''')
     logger.info(f'分析{interval}周期K线完成')
+
+
+# 绘制中枢
+def add_rectangles(df):
+    # 过滤出'center_type'列不为空的行
+    df_centered_long = df.loc[df['center_type'] == 'long']
+    df_centered_short = df.loc[df['center_type'] == 'short']
+
+    # 初始化一个空的矩形列表
+    rectangles_long = []
+    rectangles_short = []
+
+    # 遍历df_centered_long中的所有行，找到所有的中枢
+    for index, row in df_centered_long.iterrows():
+        if row['center'] == 'start':
+            start_time = index
+            y1 = row['center_price']
+        elif row['center'] == 'stop':
+            stop_time = index
+            where_values = (df.index >= start_time) & (df.index <= stop_time)
+            rectangle = dict(y1=y1, y2=row['center_price'], where=where_values, alpha=0.4, color='g')
+            rectangles_long.append(rectangle)
+
+    # 遍历df_centered_short中的所有行，找到所有的中枢
+    for index, row in df_centered_short.iterrows():
+        if row['center'] == 'start':
+            start_time = index
+            y1 = row['center_price']
+        elif row['center'] == 'stop':
+            stop_time = index
+            where_values = (df.index >= start_time) & (df.index <= stop_time)
+            rectangle = dict(y1=y1, y2=row['center_price'], where=where_values, alpha=0.4, color='r')
+            rectangles_short.append(rectangle)
+
+    rectangles = rectangles_long + rectangles_short
+
+    return rectangles
+
+
+# 绘制线段
+def add_lines(df):
+    # 创建一个新的DataFrame，只包含有分型的行
+    df_fractals = df.dropna(subset=['fractal'])
+    # 初始化一个空列表用于存储分型和对应的价格
+    fractals_lines = []
+    # 在df_centered中遍历所有有分型的数据
+    for idx, row in df_fractals.iterrows():
+        # 根据分型类型选择价格
+        price = row['High'] if row['fractal'] == 'top' else row['Low']
+
+        # 将日期和价格组成一个元组，并添加到列表中
+        fractals_lines.append((idx, price))
+
+    all_lines = dict(alines=fractals_lines, colors='c', linewidths=0.5)
+
+    return all_lines
+
+
+# 绘制附图
+def add_plots(df):
+    # 创建布林带和 MACD 的附图
+    ap_mid_band = mpf.make_addplot(df['Middle Band'], panel=0, color='orange')  # 将布林带设为面板0
+    ap_upper_band = mpf.make_addplot(df['Upper Band'], panel=0, color='red')
+    ap_lower_band = mpf.make_addplot(df['Lower Band'], panel=0, color='blue')
+    ap_dif = mpf.make_addplot(df['DIF'], panel=1, color='b', secondary_y=False)  # 将MACD设为面板1
+    ap_dea = mpf.make_addplot(df['DEA'], panel=1, color='y', secondary_y=False)
+    ap_macd = mpf.make_addplot(df['MACD'], panel=1, color='dimgray', secondary_y=False, type='bar')
+    # 创建两个布尔数组，用于标记顶分型和底分型
+    tops = (df['fractal'] == 'top')
+    bottoms = (df['fractal'] == 'bottom')
+    # 创建两个新的Series，长度与df_identified相同
+    tops_series = pd.Series(index=df.index)
+    bottoms_series = pd.Series(index=df.index)
+    # 对于顶分型和底分型，将价格填入相应的Series
+    tops_series[tops] = df['High'][tops]
+    bottoms_series[bottoms] = df['Low'][bottoms]
+    # 使用make_addplot()来创建额外的绘图，用于标记顶分型和底分型
+    addplot_tops = mpf.make_addplot(tops_series, scatter=True, markersize=20, marker='v', color='r')
+    addplot_bottoms = mpf.make_addplot(bottoms_series, scatter=True, markersize=20, marker='^', color='g')
+
+    addplot_all = [ap_mid_band, ap_upper_band, ap_lower_band, ap_dif, ap_dea, ap_macd, addplot_tops, addplot_bottoms]
+
+    return addplot_all
 
 
 def analyze_data(df):
@@ -157,94 +242,70 @@ def find_latest_center(df):
 def find_centers(df):
     # 上一个中枢的最高价和最低价
     last_center = (0, 0)
+    # 上一个中枢的类型
+    last_center_type = None
 
     # 在df中创建新的center列
     df['center'] = None
     df['center_type'] = None
+    df['center_price'] = None
 
     # 过滤出有分型标记的数据
     df_fractal = df.dropna(subset=['fractal'])
 
     # 遍历有分型标记的数据
-    for i in range(df_fractal.shape[0] - 3):
-        # 如果是第一个分型是顶分型，那么就是上升中枢
-        if df_fractal['fractal'].iloc[i] == 'top':
-            # 判断这个中枢是否包含在上一个中枢中
-            if last_center[0] < df_fractal['High'].iloc[i] < last_center[1] \
-                    or last_center[0] < df_fractal['Low'].iloc[i + 1] < last_center[1] \
-                    or last_center[0] < df_fractal['High'].iloc[i + 2] < last_center[1] \
-                    or last_center[0] < df_fractal['Low'].iloc[i + 3] < last_center[1]:
+    for i in range(df_fractal.shape[0] - 4):
+        # 如果第一个分型是底分型，那么就是上升中枢
+        if df_fractal['fractal'].iloc[i] == 'bottom':
+            current_low = min(df_fractal['Low'].iloc[i + 2], df_fractal['Low'].iloc[i + 4])
+            current_high = max(df_fractal['High'].iloc[i + 1], df_fractal['High'].iloc[i + 3])
+            # 如果第一个分型的底在当前中枢的高低之间，那么就不是有效的中枢
+            if current_low <= df_fractal['Low'].iloc[i] <= current_high:
                 continue
+            # 如果上一个中枢也是上升中枢，那么判断这个中枢是否包含在上一个中枢中
+            if last_center_type == 'long':
+                if last_center[0] < df_fractal['Low'].iloc[i + 2] < last_center[1] \
+                        or last_center[0] < df_fractal['Low'].iloc[i + 4] < last_center[1]:
+                    continue
             # 中枢的顶是两个顶分型中最低的价格，中枢的底是两个底分型中最高的价格
-            center_high = min(df_fractal['High'].iloc[i], df_fractal['High'].iloc[i + 2])
+            center_high = min(df_fractal['High'].iloc[i + 1], df_fractal['High'].iloc[i + 3])
+            center_low = max(df_fractal['Low'].iloc[i + 2], df_fractal['Low'].iloc[i + 4])
+            # 如果中枢的高点价格高于低点价格，那么中枢成立
+            if center_low < center_high:
+                df.loc[df_fractal.index[i + 1], 'center'] = 'start'
+                df.loc[df_fractal.index[i + 1], 'center_type'] = 'long'
+                df.loc[df_fractal.index[i + 1], 'center_price'] = center_high
+                df.loc[df_fractal.index[i + 4], 'center'] = 'stop'
+                df.loc[df_fractal.index[i + 4], 'center_type'] = 'long'
+                df.loc[df_fractal.index[i + 4], 'center_price'] = center_low
+
+                last_center = (current_low, current_high)
+                last_center_type = 'long'
+        # 如果第一个分型是顶分型，那么就是下降中枢
+        if df_fractal['fractal'].iloc[i] == 'top':
+            current_low = min(df_fractal['Low'].iloc[i + 1], df_fractal['Low'].iloc[i + 3])
+            current_high = max(df_fractal['High'].iloc[i + 2], df_fractal['High'].iloc[i + 4])
+            # 如果第一个分型的顶在当前中枢的高低之间，那么就不是有效的中枢
+            if current_low <= df_fractal['High'].iloc[i] <= current_high:
+                continue
+            # 如果上一个中枢也是下降中枢，那么判断这个中枢是否包含在上一个中枢中
+            if last_center_type == 'short':
+                if last_center[0] < df_fractal['High'].iloc[i + 2] < last_center[1] \
+                        or last_center[0] < df_fractal['High'].iloc[i + 4] < last_center[1]:
+                    continue
+            # 中枢的顶是两个顶分型中最低的价格，中枢的底是两个底分型中最高的价格
+            center_high = min(df_fractal['High'].iloc[i + 2], df_fractal['High'].iloc[i + 4])
             center_low = max(df_fractal['Low'].iloc[i + 1], df_fractal['Low'].iloc[i + 3])
             # 如果中枢的高点价格高于低点价格，那么中枢成立
             if center_low < center_high:
-                # if last_center == (0, 0):
-                #     last_center = (min(df_fractal['Low'].iloc[i + 1], df_fractal['Low'].iloc[i + 3]),
-                #                    max(df_fractal['High'].iloc[i], df_fractal['High'].iloc[i + 2]))
-                #     continue
-                if df_fractal['High'].iloc[i] == center_high:
-                    df.loc[df_fractal.index[i], 'center'] = 'start'
-                    df.loc[df_fractal.index[i], 'center_type'] = 'long'
-                    if df_fractal['Low'].iloc[i + 1] == center_low:
-                        df.loc[df_fractal.index[i + 1], 'center'] = 'stop'
-                        df.loc[df_fractal.index[i + 1], 'center_type'] = 'long'
-                    else:
-                        df.loc[df_fractal.index[i + 3], 'center'] = 'stop'
-                        df.loc[df_fractal.index[i + 3], 'center_type'] = 'long'
-                else:
-                    if df_fractal['Low'].iloc[i + 1] == center_low:
-                        df.loc[df_fractal.index[i + 1], 'center'] = 'start'
-                        df.loc[df_fractal.index[i + 1], 'center_type'] = 'long'
-                        df.loc[df_fractal.index[i + 2], 'center'] = 'stop'
-                        df.loc[df_fractal.index[i + 2], 'center_type'] = 'long'
-                    else:
-                        df.loc[df_fractal.index[i + 2], 'center'] = 'start'
-                        df.loc[df_fractal.index[i + 2], 'center_type'] = 'long'
-                        df.loc[df_fractal.index[i + 3], 'center'] = 'stop'
-                        df.loc[df_fractal.index[i + 3], 'center_type'] = 'long'
-                last_center = (min(df_fractal['Low'].iloc[i + 1], df_fractal['Low'].iloc[i + 3]),
-                               max(df_fractal['High'].iloc[i], df_fractal['High'].iloc[i + 2]))
-        # 如果是第一个分型是底分型，那么就是下降中枢
-        if df_fractal['fractal'].iloc[i] == 'bottom':
-            # 判断这个中枢是否包含在上一个中枢中
-            if last_center[0] < df_fractal['Low'].iloc[i] < last_center[1] \
-                    or last_center[0] < df_fractal['High'].iloc[i + 1] < last_center[1] \
-                    or last_center[0] < df_fractal['Low'].iloc[i + 2] < last_center[1] \
-                    or last_center[0] < df_fractal['High'].iloc[i + 3] < last_center[1]:
-                continue
-            # 中枢的顶是两个顶分型中最低的价格，中枢的底是两个底分型中最高的价格
-            center_high = min(df_fractal['High'].iloc[i + 1], df_fractal['High'].iloc[i + 3])
-            center_low = max(df_fractal['Low'].iloc[i], df_fractal['Low'].iloc[i + 2])
-            # 如果中枢的高点价格高于低点价格，那么中枢成立
-            if center_low < center_high:
-                # if last_center == (0, 0):
-                #     last_center = (min(df_fractal['Low'].iloc[i], df_fractal['Low'].iloc[i + 2]),
-                #                    max(df_fractal['High'].iloc[i + 1], df_fractal['High'].iloc[i + 3]))
-                #     continue
-                if df_fractal['Low'].iloc[i] == center_low:
-                    df.loc[df_fractal.index[i], 'center'] = 'start'
-                    df.loc[df_fractal.index[i], 'center_type'] = 'short'
-                    if df_fractal['High'].iloc[i + 1] == center_high:
-                        df.loc[df_fractal.index[i + 1], 'center'] = 'stop'
-                        df.loc[df_fractal.index[i + 1], 'center_type'] = 'short'
-                    else:
-                        df.loc[df_fractal.index[i + 3], 'center'] = 'stop'
-                        df.loc[df_fractal.index[i + 3], 'center_type'] = 'short'
-                else:
-                    if df_fractal['High'].iloc[i + 1] == center_high:
-                        df.loc[df_fractal.index[i + 1], 'center'] = 'start'
-                        df.loc[df_fractal.index[i + 1], 'center_type'] = 'short'
-                        df.loc[df_fractal.index[i + 2], 'center'] = 'stop'
-                        df.loc[df_fractal.index[i + 2], 'center_type'] = 'short'
-                    else:
-                        df.loc[df_fractal.index[i + 2], 'center'] = 'start'
-                        df.loc[df_fractal.index[i + 2], 'center_type'] = 'short'
-                        df.loc[df_fractal.index[i + 3], 'center'] = 'stop'
-                        df.loc[df_fractal.index[i + 3], 'center_type'] = 'short'
-                last_center = (min(df_fractal['Low'].iloc[i], df_fractal['Low'].iloc[i + 2]),
-                               max(df_fractal['High'].iloc[i + 1], df_fractal['High'].iloc[i + 3]))
+                df.loc[df_fractal.index[i + 1], 'center'] = 'start'
+                df.loc[df_fractal.index[i + 1], 'center_type'] = 'short'
+                df.loc[df_fractal.index[i + 1], 'center_price'] = center_low
+                df.loc[df_fractal.index[i + 4], 'center'] = 'stop'
+                df.loc[df_fractal.index[i + 4], 'center_type'] = 'short'
+                df.loc[df_fractal.index[i + 4], 'center_price'] = center_high
+                last_center = (current_low, current_high)
+                last_center_type = 'short'
 
     return df
 
