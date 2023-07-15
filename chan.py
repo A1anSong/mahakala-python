@@ -130,8 +130,8 @@ def add_plots(df):
     tops_series[tops] = df['High'][tops]
     bottoms_series[bottoms] = df['Low'][bottoms]
     # 使用make_addplot()来创建额外的绘图，用于标记顶分型和底分型
-    addplot_tops = mpf.make_addplot(tops_series, scatter=True, markersize=50, marker='v', color='r')
-    addplot_bottoms = mpf.make_addplot(bottoms_series, scatter=True, markersize=50, marker='^', color='g')
+    addplot_tops = mpf.make_addplot(tops_series, scatter=True, markersize=500, marker='v', color='r')
+    addplot_bottoms = mpf.make_addplot(bottoms_series, scatter=True, markersize=500, marker='^', color='g')
 
     addplot_all = [ap_mid_band, ap_upper_band, ap_lower_band, ap_dif, ap_dea, ap_macd, addplot_tops, addplot_bottoms]
 
@@ -432,13 +432,13 @@ def merge_candle(df):
             # 如果是上升
             if curr_row['High'] >= df.iloc[i - 1]['High']:
                 df.loc[df.index[keep_index], 'High'] = max(curr_row['High'], next_row['High'])
-                df.loc[df.index[keep_index], 'Low'] = min(curr_row['Low'], next_row['Low'])
+                df.loc[df.index[keep_index], 'Low'] = max(curr_row['Low'], next_row['Low'])
                 df.loc[df.index[keep_index], 'Open'] = df.loc[df.index[keep_index], 'Low']
                 df.loc[df.index[keep_index], 'Close'] = df.loc[df.index[keep_index], 'High']
             # 如果是下降
             else:
                 df.loc[df.index[keep_index], 'High'] = min(curr_row['High'], next_row['High'])
-                df.loc[df.index[keep_index], 'Low'] = max(curr_row['Low'], next_row['Low'])
+                df.loc[df.index[keep_index], 'Low'] = min(curr_row['Low'], next_row['Low'])
                 df.loc[df.index[keep_index], 'Open'] = df.loc[df.index[keep_index], 'High']
                 df.loc[df.index[keep_index], 'Close'] = df.loc[df.index[keep_index], 'Low']
             df.loc[df.index[keep_index], 'Volume'] = curr_row['Volume'] + next_row['Volume']
