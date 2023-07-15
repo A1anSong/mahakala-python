@@ -1,3 +1,4 @@
+from datetime import datetime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 import pandas as pd
@@ -25,7 +26,8 @@ interval_period = {
 
 def chan_analyze(interval):
     amount = 1000
-    logger.info(f'开始分析{interval}周期K线')
+    logger.info(f'开始分析{interval}周期K线数据...')
+    start_time = datetime.now()
     for symbol in binance_util.symbols:
         df = get_data(symbol['symbol'], interval_period[interval], amount)
         # 将df数据中最后一个数据删除
@@ -45,7 +47,8 @@ def chan_analyze(interval):
 止损比例：{stop_loss_ratio}%
 资金费率：{last_funding_rate}%
 时间：{pd.Timestamp('now').strftime('%Y年%m月%d日 %H时%M分%S秒')}''')
-    logger.info(f'分析{interval}周期K线完成')
+    end_time = datetime.now()
+    logger.info(f'分析{interval}周期K线完毕！耗时：{end_time - start_time}')
 
 
 # 绘制中枢

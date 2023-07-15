@@ -50,14 +50,14 @@ def get_binance_info():
         for index, symbol in enumerate(symbols):
             interactive_content = f'''({index + 1}/{total_symbols})正在创建{symbol['symbol']}交易对信息: '''
             create_table(symbol['symbol'], interactive_content)
-        stop_time = datetime.now()
-        print(f'\r✓ 交易对信息创建完成！耗时：{stop_time - start_time}')
+        end_time = datetime.now()
+        print(f'\r✓ 交易对信息创建完毕！耗时：{end_time - start_time}')
     start_time = datetime.now()
     for index, symbol in enumerate(symbols):
         interactive_content = f'''({index + 1}/{total_symbols})正在更新{symbol['symbol']}交易对信息: '''
         update_klines(symbol, '30m', interactive_content)
-    stop_time = datetime.now()
-    print(f'\r✓ 交易对信息更新完成！耗时：{stop_time - start_time}')
+    end_time = datetime.now()
+    print(f'\r✓ 交易对信息更新完毕！耗时：{end_time - start_time}')
     logger.info(f'{total_symbols}个交易对的30m K线数据更新完毕！')
 
 
