@@ -1,6 +1,7 @@
 APScheduler==3.10.1
 binance_futures_connector==4.0.0rc3
 Flask==2.3.2
+mplfinance==0.12.9b7
 pandas==2.0.3
 pandas==1.5.3
 psycopg2==2.9.6
