@@ -180,10 +180,10 @@ def find_centers(df):
             center_low = max(df_fractal['Low'].iloc[i + 1], df_fractal['Low'].iloc[i + 3])
             # 如果中枢的高点价格高于低点价格，那么中枢成立
             if center_low < center_high:
-                if last_center == (0, 0):
-                    last_center = (min(df_fractal['Low'].iloc[i + 1], df_fractal['Low'].iloc[i + 3]),
-                                   max(df_fractal['High'].iloc[i], df_fractal['High'].iloc[i + 2]))
-                    continue
+                # if last_center == (0, 0):
+                #     last_center = (min(df_fractal['Low'].iloc[i + 1], df_fractal['Low'].iloc[i + 3]),
+                #                    max(df_fractal['High'].iloc[i], df_fractal['High'].iloc[i + 2]))
+                #     continue
                 if df_fractal['High'].iloc[i] == center_high:
                     df.loc[df_fractal.index[i], 'center'] = 'start'
                     df.loc[df_fractal.index[i], 'center_type'] = 'long'
@@ -219,10 +219,10 @@ def find_centers(df):
             center_low = max(df_fractal['Low'].iloc[i], df_fractal['Low'].iloc[i + 2])
             # 如果中枢的高点价格高于低点价格，那么中枢成立
             if center_low < center_high:
-                if last_center == (0, 0):
-                    last_center = (min(df_fractal['Low'].iloc[i], df_fractal['Low'].iloc[i + 2]),
-                                   max(df_fractal['High'].iloc[i + 1], df_fractal['High'].iloc[i + 3]))
-                    continue
+                # if last_center == (0, 0):
+                #     last_center = (min(df_fractal['Low'].iloc[i], df_fractal['Low'].iloc[i + 2]),
+                #                    max(df_fractal['High'].iloc[i + 1], df_fractal['High'].iloc[i + 3]))
+                #     continue
                 if df_fractal['Low'].iloc[i] == center_low:
                     df.loc[df_fractal.index[i], 'center'] = 'start'
                     df.loc[df_fractal.index[i], 'center_type'] = 'short'
@@ -362,17 +362,19 @@ def merge_candle(df):
             if curr_row['High'] <= next_row['High'] and curr_row['Low'] >= next_row['Low']:
                 keep_index = j
                 drop_index = i
-            df.loc[df.index[keep_index], 'High'] = max(curr_row['High'], next_row['High'])
-            df.loc[df.index[keep_index], 'Low'] = min(curr_row['Low'], next_row['Low'])
-            df.loc[df.index[keep_index], 'Volume'] = curr_row['Volume'] + next_row['Volume']
             # 如果是上升
             if curr_row['High'] >= df.iloc[i - 1]['High']:
+                df.loc[df.index[keep_index], 'High'] = max(curr_row['High'], next_row['High'])
+                df.loc[df.index[keep_index], 'Low'] = min(curr_row['Low'], next_row['Low'])
                 df.loc[df.index[keep_index], 'Open'] = df.loc[df.index[keep_index], 'Low']
                 df.loc[df.index[keep_index], 'Close'] = df.loc[df.index[keep_index], 'High']
             # 如果是下降
             else:
+                df.loc[df.index[keep_index], 'High'] = min(curr_row['High'], next_row['High'])
+                df.loc[df.index[keep_index], 'Low'] = max(curr_row['Low'], next_row['Low'])
                 df.loc[df.index[keep_index], 'Open'] = df.loc[df.index[keep_index], 'High']
                 df.loc[df.index[keep_index], 'Close'] = df.loc[df.index[keep_index], 'Low']
+            df.loc[df.index[keep_index], 'Volume'] = curr_row['Volume'] + next_row['Volume']
             drop_rows.append(df.index[drop_index])
             if drop_index == i:
                 i += 1
