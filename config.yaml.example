@@ -27,3 +27,6 @@ logging:
     console_logger:
       handlers: [ console ]
       level: DEBUG
+mahakala:
+  update_klines: True
+  analyze_amount: 1000

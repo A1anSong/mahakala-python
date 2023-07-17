@@ -25,11 +25,10 @@ interval_period = {
 
 
 def chan_analyze(interval):
-    amount = 1000
     logger.info(f'开始分析{interval}周期K线数据...')
     start_time = datetime.now()
     for symbol in binance_util.symbols:
-        df = get_data(symbol['symbol'], interval_period[interval], amount)
+        df = get_data(symbol['symbol'], interval_period[interval], config['mahakala']['analyze_amount'])
         # 将df数据中最后一个数据删除
         df = df[:-1]
         signal = analyze_data(df)
