@@ -130,8 +130,8 @@ def add_plots(df):
     tops_series[tops] = df['High'][tops]
     bottoms_series[bottoms] = df['Low'][bottoms]
     # 使用make_addplot()来创建额外的绘图，用于标记顶分型和底分型
-    addplot_tops = mpf.make_addplot(tops_series, scatter=True, markersize=500, marker='v', color='r')
-    addplot_bottoms = mpf.make_addplot(bottoms_series, scatter=True, markersize=500, marker='^', color='g')
+    addplot_tops = mpf.make_addplot(tops_series, scatter=True, markersize=200, marker='v', color='r')
+    addplot_bottoms = mpf.make_addplot(bottoms_series, scatter=True, markersize=200, marker='^', color='g')
 
     addplot_all = [ap_mid_band, ap_upper_band, ap_lower_band, ap_dif, ap_dea, ap_macd, addplot_tops, addplot_bottoms]
 
@@ -242,8 +242,12 @@ def find_latest_center(df, center_type):
 
     # 遍历df_centered_notnull中的所有行，找到所有的中枢
     for index, row in df_centered_notnull.iterrows():
-        if row['center'] == 'start':
-            latest_center_index = index
+        if center_type == 'long':
+            if row['center_type_long'] == 'start':
+                latest_center_index = index
+        elif center_type == 'short':
+            if row['center_type_short'] == 'start':
+                latest_center_index = index
 
     return latest_center_index
 
@@ -255,7 +259,6 @@ def find_centers(df):
     last_center_type = None
 
     # 在df中创建新的center列
-    df['center'] = None
     df['center_type_long'] = None
     df['center_type_short'] = None
     df['center_price'] = None
@@ -307,7 +310,6 @@ def find_centers(df):
             if center_low < center_high:
                 df.loc[df_fractal.index[i + 1], 'center_type_short'] = 'start'
                 df.loc[df_fractal.index[i + 1], 'center_price'] = center_low
-                df.loc[df_fractal.index[i + 4], 'center'] = 'stop'
                 df.loc[df_fractal.index[i + 4], 'center_type_short'] = 'stop'
                 df.loc[df_fractal.index[i + 4], 'center_price'] = center_high
                 last_center = (current_low, current_high)
@@ -421,16 +423,19 @@ def merge_candle(df):
         j = i + 1
         curr_row = df.iloc[i]
         next_row = df.iloc[j]
+        last_row_step = 1
         while i > 0 and ((curr_row['High'] >= next_row['High'] and curr_row['Low'] <= next_row['Low']) or (
                 curr_row['High'] <= next_row['High'] and curr_row['Low'] >= next_row['Low'])):
+            last_row = df.iloc[i - last_row_step]
             keep_index = i
             drop_index = j
             # 如果当前K线被下一根K线包含，那么就删除当前K线
             if curr_row['High'] <= next_row['High'] and curr_row['Low'] >= next_row['Low']:
                 keep_index = j
                 drop_index = i
+                last_row_step += 1
             # 如果是上升
-            if curr_row['High'] >= df.iloc[i - 1]['High']:
+            if curr_row['High'] >= last_row['High']:
                 df.loc[df.index[keep_index], 'High'] = max(curr_row['High'], next_row['High'])
                 df.loc[df.index[keep_index], 'Low'] = max(curr_row['Low'], next_row['Low'])
                 df.loc[df.index[keep_index], 'Open'] = df.loc[df.index[keep_index], 'Low']

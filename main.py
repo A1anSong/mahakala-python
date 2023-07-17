@@ -8,7 +8,6 @@ from server import web
 
 if __name__ == '__main__':
     # 初始化行情模块
-    # 第一次执行先拉取数据
     get_binance_info()
 
     # 拉取数据后，每30分钟的第一分钟执行获取币安交易信息
