@@ -418,21 +418,26 @@ def identify_fractal(df):
 def merge_candle(df):
     drop_rows = []
     i = 0
+    last_index = 0
+    final_keep_index = 0
     while i < df.shape[0] - 1:
         j = i + 1
+        if last_index == final_keep_index:
+            last_index = i - 1
+            final_keep_index = i - 1
+        else:
+            last_index = final_keep_index
         curr_row = df.iloc[i]
         next_row = df.iloc[j]
-        last_row_step = 1
         while i > 0 and ((curr_row['High'] >= next_row['High'] and curr_row['Low'] <= next_row['Low']) or (
                 curr_row['High'] <= next_row['High'] and curr_row['Low'] >= next_row['Low'])):
-            last_row = df.iloc[i - last_row_step]
             keep_index = i
             drop_index = j
+            last_row = df.iloc[last_index]
             # 如果当前K线被下一根K线包含，那么就删除当前K线
             if curr_row['High'] <= next_row['High'] and curr_row['Low'] >= next_row['Low']:
                 keep_index = j
                 drop_index = i
-                last_row_step += 1
             # 如果是上升
             if curr_row['High'] >= last_row['High']:
                 df.loc[df.index[keep_index], 'High'] = max(curr_row['High'], next_row['High'])
@@ -446,11 +451,12 @@ def merge_candle(df):
                 df.loc[df.index[keep_index], 'Open'] = df.loc[df.index[keep_index], 'High']
                 df.loc[df.index[keep_index], 'Close'] = df.loc[df.index[keep_index], 'Low']
             df.loc[df.index[keep_index], 'Volume'] = curr_row['Volume'] + next_row['Volume']
+            final_keep_index = keep_index
             drop_rows.append(df.index[drop_index])
-            if drop_index == i:
-                i += 1
             if j < df.shape[0] - 1:
                 j += 1
+                if drop_index == i:
+                    i = keep_index
                 curr_row = df.iloc[i]
                 next_row = df.iloc[j]
             else:
@@ -519,6 +525,8 @@ def get_data(symbol, interval, amount):
 
         # 将period列设为索引
         df.set_index('period', inplace=True)
+
+        df = df.tz_convert('Asia/Shanghai')
 
         df.columns = ['Open', 'High', 'Low', 'Close', 'Volume', 'index']
 
