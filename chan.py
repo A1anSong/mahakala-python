@@ -36,6 +36,26 @@ def chan_analyze(interval):
             # 计算出开仓价到止损价之间的比例，取开仓价减去止损价的绝对值，除以开仓价，计算出止损比例，取百分比并保留2位小数
             stop_loss_ratio = round(
                 abs(signal['Entry Price'] - signal['Stop Loss Price']) / signal['Entry Price'] * 100, 2)
+            # 建议杠杆倍数
+            suggest_leverage = int(20 / stop_loss_ratio)
+            # 建议杠杆倍数的资金体量
+            suggest_leverage_amount = suggest_leverage * config['mahakala']['open_amount']
+            # 获取交易对的杠杆倍数档位
+            leverage_brackets = \
+                [brackets for brackets in binance_util.brackets if brackets['symbol'] == symbol['symbol']][0][
+                    'brackets']
+            leverage_brackets = sorted(leverage_brackets, key=lambda x: x['initialLeverage'])
+            initial_leverage = 0
+            notional_cap = 0
+            for bracket in leverage_brackets:
+                if suggest_leverage >= bracket['initialLeverage']:
+                    initial_leverage = bracket['initialLeverage']
+                    notional_cap = bracket['notionalCap']
+                    break
+            # 如果建议杠杆倍数的资金体量大于杠杆倍数档位的资金体量，则跳过
+            if suggest_leverage_amount > notional_cap:
+                continue
+            # 获取最新资金费率
             last_funding_rate = binance_util.get_last_funding_rate(symbol['symbol'])
             # 发送飞书消息
             feishu.send('交易信号', f'''交易对："{symbol['symbol']}"出现了交易信号
@@ -44,6 +64,9 @@ def chan_analyze(interval):
 开仓价：{signal['Entry Price']}
 止损价：{signal['Stop Loss Price']}
 止损比例：{stop_loss_ratio}%
+建议杠杆倍数：{suggest_leverage}倍
+当前杠杆倍数档位：{initial_leverage}倍
+当前杠杆倍数档位的资金容量：{int(notional_cap / initial_leverage)} USDT
 资金费率：{last_funding_rate}%
 时间：{pd.Timestamp('now').strftime('%Y年%m月%d日 %H时%M分%S秒')}''')
     end_time = datetime.now()

@@ -15,6 +15,8 @@ um_futures_client = UMFutures(key=config['binance']['api_key'], secret=config['b
 symbols = []
 symbols_set = set()
 
+brackets = []
+
 first_time = True
 
 
@@ -29,6 +31,7 @@ def get_last_funding_rate(symbol):
 def get_binance_info():
     global symbols
     global symbols_set
+    global brackets
     global first_time
     logger.info(f'开始获取币安交易信息...')
     exchange_info = um_futures_client.exchange_info()
@@ -45,6 +48,7 @@ def get_binance_info():
         first_time = False
     total_symbols = len(symbols)
     logger.info(f'TRADING状态且标的资产为USDT的交易对数量：{total_symbols}')
+    brackets = um_futures_client.leverage_brackets()
     if should_create_table:
         start_time = datetime.now()
         for index, symbol in enumerate(symbols):

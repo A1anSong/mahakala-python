@@ -30,3 +30,4 @@ logging:
 mahakala:
   update_klines: True
   analyze_amount: 1000
+  open_amount: 1000
