@@ -12,6 +12,9 @@ binance:
   api_key:
   api_secret:
 feishu:
+  app_id:
+  app_secret:
+  receive_id:
   webhook:
 logging:
   version: 1

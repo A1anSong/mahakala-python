@@ -51,9 +51,13 @@ def chan_analyze(interval):
                 if suggest_leverage >= bracket['initialLeverage']:
                     initial_leverage = bracket['initialLeverage']
                     notional_cap = bracket['notionalCap']
+                else:
                     break
             # 如果建议杠杆倍数的资金体量大于杠杆倍数档位的资金体量，则跳过
             if suggest_leverage_amount > notional_cap:
+                logger.info(f'''建议杠杆倍数的资金体量大于杠杆倍数档位的资金体量，跳过！
+交易对：{symbol['symbol']}
+周期：{interval_period[interval]}''')
                 continue
             # 获取最新资金费率
             last_funding_rate = binance_util.get_last_funding_rate(symbol['symbol'])
