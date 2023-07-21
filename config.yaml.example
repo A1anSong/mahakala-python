@@ -1,21 +1,20 @@
 app:
   name: mahakala
   version: 0.0.1
+binance:
+  base_url: https://fapi.binance.com
+  api_key:
+  api_secret:
 db:
   host: localhost
   port: 5432
   user: postgres
   password: postgres
   database: postgres
-binance:
-  base_url: https://fapi.binance.com
-  api_key:
-  api_secret:
 feishu:
   app_id:
   app_secret:
   receive_id:
-  webhook:
 logging:
   version: 1
   formatters:

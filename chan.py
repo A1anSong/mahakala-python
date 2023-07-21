@@ -1,3 +1,4 @@
+import io
 from datetime import datetime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
@@ -31,7 +32,7 @@ def chan_analyze(interval):
         df = get_data(symbol['symbol'], interval_period[interval], config['mahakala']['analyze_amount'])
         # 将df数据中最后一个数据删除
         df = df[:-1]
-        signal = analyze_data(df)
+        signal = analyze_data(df, symbol['symbol'], interval)
         if signal['Can Open']:
             # 计算出开仓价到止损价之间的比例，取开仓价减去止损价的绝对值，除以开仓价，计算出止损比例，取百分比并保留2位小数
             stop_loss_ratio = round(
@@ -62,19 +63,84 @@ def chan_analyze(interval):
             # 获取最新资金费率
             last_funding_rate = binance_util.get_last_funding_rate(symbol['symbol'])
             # 发送飞书消息
-            feishu.send('交易信号', f'''交易对："{symbol['symbol']}"出现了交易信号
+            feishu.send_post_message('交易信号', f'''交易对："{symbol['symbol']}"出现了交易信号
 周期：{interval}
 方向：{signal['Direction']}
 开仓价：{signal['Entry Price']}
+耐心等待收口再做哟！
 止损价：{signal['Stop Loss Price']}
+留得青山在，不怕没柴烧！
 止损比例：{stop_loss_ratio}%
-建议杠杆倍数：{suggest_leverage}倍
-当前杠杆倍数档位：{initial_leverage}倍
-当前杠杆倍数档位的资金容量：{int(notional_cap / initial_leverage)} USDT
+建议倍数：{suggest_leverage}倍
+切记不要想着一口吃成胖子哟！
+杠杆档位：{initial_leverage}倍
+资金容量：{int(notional_cap / initial_leverage)} USDT
 资金费率：{last_funding_rate}%
-时间：{pd.Timestamp('now').strftime('%Y年%m月%d日 %H时%M分%S秒')}''')
+时间：{pd.Timestamp('now').strftime('%Y年%m月%d日 %H时%M分%S秒')}''', signal['K Lines'])
     end_time = datetime.now()
     logger.info(f'分析{interval}周期K线完毕！耗时：{end_time - start_time}')
+
+
+def analyze_data(df, symbol, interval):
+    signal = {
+        'Can Open': False,
+        'Direction': None,
+        'Entry Price': None,
+        'Stop Loss Price': None,
+        'K Lines': None,
+    }
+    # 判断数据长度是否大于等于20
+    if len(df) < 20:
+        return signal
+
+    # 先将布林带数值计算出来
+    df = add_bollinger_bands(df)
+    # 再将MACD数值计算出来
+    df = add_macd(df)
+    # 处理K线的包含关系
+    df_merged = merge_candle(df)
+    # 判断是否有分型
+    df_fractal = identify_fractal(df_merged)
+    # 过滤掉无效的分型
+    df_filtered = filter_fractals(df_fractal)
+    # 找出中枢
+    df_centered = find_centers(df_filtered)
+    # 判断是否有分型
+    fractal = check_signal(df_centered)
+    # 如果fractal不为空，那么就是有信号
+    if fractal is not None:
+        signal['Can Open'] = True
+        # 如果是顶分型，那么开仓价为中间那根K线的最低价，止损价为最高价
+        if fractal['fractal'] == 'top':
+            signal['Direction'] = 'Short'
+            signal['Entry Price'] = fractal['Low']
+            signal['Stop Loss Price'] = fractal['High']
+        # 如果是底分型，那么开仓价为中间那根K线的最高价，止损价为最低价
+        elif fractal['fractal'] == 'bottom':
+            signal['Direction'] = 'Long'
+            signal['Entry Price'] = fractal['High']
+            signal['Stop Loss Price'] = fractal['Low']
+        signal['K Lines'] = draw_klines(df_centered, symbol, interval)
+    return signal
+
+
+def draw_klines(df, symbol, interval):
+    addplot_all = add_plots(df)
+    all_lines = add_lines(df)
+    rectangles = add_rectangles(df)
+    buf = io.BytesIO()
+    # # 绘制图表
+    if len(rectangles) > 0:
+        mpf.plot(df, figscale=5, type='candle', style='binance', title=f'{symbol} {interval}', ylabel='Price (₮)',
+                 volume=True, ylabel_lower='Volume', volume_panel=2, addplot=addplot_all, alines=all_lines,
+                 fill_between=rectangles, warn_too_much_data=1000, savefig=buf)
+    else:
+        mpf.plot(df, figscale=5, type='candle', style='binance', title=f'{symbol} {interval}', ylabel='Price (₮)',
+                 volume=True, ylabel_lower='Volume', volume_panel=2, addplot=addplot_all, alines=all_lines,
+                 warn_too_much_data=1000, savefig=buf)
+    buf.seek(0)
+
+    return buf
 
 
 # 绘制中枢
@@ -162,47 +228,6 @@ def add_plots(df):
     addplot_all = [ap_mid_band, ap_upper_band, ap_lower_band, ap_dif, ap_dea, ap_macd, addplot_tops, addplot_bottoms]
 
     return addplot_all
-
-
-def analyze_data(df):
-    signal = {
-        'Can Open': False,
-        'Direction': None,
-        'Entry Price': None,
-        'Stop Loss Price': None,
-    }
-    # 判断数据长度是否大于等于20
-    if len(df) < 20:
-        return signal
-
-    # 先将布林带数值计算出来
-    df = add_bollinger_bands(df)
-    # 再将MACD数值计算出来
-    df = add_macd(df)
-    # 处理K线的包含关系
-    df_merged = merge_candle(df)
-    # 判断是否有分型
-    df_fractal = identify_fractal(df_merged)
-    # 过滤掉无效的分型
-    df_filtered = filter_fractals(df_fractal)
-    # 找出中枢
-    df_centered = find_centers(df_filtered)
-    # 判断是否有分型
-    fractal = check_signal(df_centered)
-    # 如果fractal不为空，那么就是有信号
-    if fractal is not None:
-        signal['Can Open'] = True
-        # 如果是顶分型，那么开仓价为中间那根K线的最低价，止损价为最高价
-        if fractal['fractal'] == 'top':
-            signal['Direction'] = 'Short'
-            signal['Entry Price'] = fractal['Low']
-            signal['Stop Loss Price'] = fractal['High']
-        # 如果是底分型，那么开仓价为中间那根K线的最高价，止损价为最低价
-        elif fractal['fractal'] == 'bottom':
-            signal['Direction'] = 'Long'
-            signal['Entry Price'] = fractal['High']
-            signal['Stop Loss Price'] = fractal['Low']
-    return signal
 
 
 def check_signal(df):

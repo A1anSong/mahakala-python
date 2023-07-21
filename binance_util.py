@@ -29,10 +29,7 @@ def get_last_funding_rate(symbol):
 
 # 获取币安交易信息
 def get_binance_info():
-    global symbols
-    global symbols_set
-    global brackets
-    global first_time
+    global symbols, symbols_set, brackets, first_time
     logger.info(f'开始获取币安交易信息...')
     exchange_info = um_futures_client.exchange_info()
     new_symbols_set = {symbol['symbol'] for symbol in exchange_info['symbols'] if
@@ -40,7 +37,7 @@ def get_binance_info():
     should_create_table = False
     if symbols_set != new_symbols_set:
         if not first_time:
-            feishu.send('行情提醒', f'币安交易对信息发生变化！')
+            feishu.send_post_message('行情提醒', f'币安交易对信息发生变化！')
         should_create_table = True
         symbols = [symbol for symbol in exchange_info['symbols'] if
                    symbol['status'] == 'TRADING' and symbol['symbol'].endswith('USDT')]
@@ -109,7 +106,7 @@ def update_klines(symbol_info, interval, pre_content=''):
 
             except Exception as e:
                 logger.error(f'(更新{symbol}的 K 线数据失败，原因：{e}')
-                feishu.send('程序异常', f'''(更新{symbol}的 K 线数据失败，原因：{e}''')
+                feishu.send_post_message('程序异常', f'''(更新{symbol}的 K 线数据失败，原因：{e}''')
                 conn.rollback()
             finally:
                 db_pool.putconn(conn)
@@ -162,7 +159,7 @@ def create_table(symbol, pre_content=''):
                 conn.commit()
         except Exception as e:
             logger.error(f'创建超表{symbol}失败，原因：{e}')
-            feishu.send('程序异常', f'''创建超表{symbol}失败，原因：{e}''')
+            feishu.send_post_message('程序异常', f'''创建超表{symbol}失败，原因：{e}''')
             conn.rollback()
         finally:
             db_pool.putconn(conn)
