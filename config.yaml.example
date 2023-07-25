@@ -1,6 +1,6 @@
 app:
   name: mahakala
-  version: 0.0.1
+  version: 1.0.0
 binance:
   base_url: https://fapi.binance.com
   api_key:
@@ -33,3 +33,4 @@ mahakala:
   update_klines: True
   analyze_amount: 1000
   open_amount: 1000
+  draw_amount: 300

@@ -58,7 +58,10 @@ def chan_analyze(interval):
             if suggest_leverage_amount > notional_cap:
                 logger.info(f'''建议杠杆倍数的资金体量大于杠杆倍数档位的资金体量，跳过！
 交易对：{symbol['symbol']}
-周期：{interval_period[interval]}''')
+周期：{interval_period[interval]}
+方向: {signal['Direction']}
+杠杆倍数：{suggest_leverage}倍
+资金容量：{int(notional_cap / initial_leverage)} USDT''')
                 continue
             # 获取最新资金费率
             last_funding_rate = binance_util.get_last_funding_rate(symbol['symbol'])
@@ -120,7 +123,8 @@ def analyze_data(df, symbol, interval):
             signal['Direction'] = 'Long'
             signal['Entry Price'] = fractal['High']
             signal['Stop Loss Price'] = fractal['Low']
-        signal['K Lines'] = draw_klines(df_centered, symbol, interval)
+        signal['K Lines'] = draw_klines(df_centered[-config['mahakala']['draw_amount']:], symbol, interval)
+
     return signal
 
 
@@ -129,13 +133,13 @@ def draw_klines(df, symbol, interval):
     all_lines = add_lines(df)
     rectangles = add_rectangles(df)
     buf = io.BytesIO()
-    # # 绘制图表
+    # 绘制图表
     if len(rectangles) > 0:
-        mpf.plot(df, figscale=5, type='candle', style='binance', title=f'{symbol} {interval}', ylabel='Price (₮)',
+        mpf.plot(df, figscale=1, type='candle', style='binance', title=f'{symbol} {interval}', ylabel='Price (₮)',
                  volume=True, ylabel_lower='Volume', volume_panel=2, addplot=addplot_all, alines=all_lines,
                  fill_between=rectangles, warn_too_much_data=1000, savefig=buf)
     else:
-        mpf.plot(df, figscale=5, type='candle', style='binance', title=f'{symbol} {interval}', ylabel='Price (₮)',
+        mpf.plot(df, figscale=1, type='candle', style='binance', title=f'{symbol} {interval}', ylabel='Price (₮)',
                  volume=True, ylabel_lower='Volume', volume_panel=2, addplot=addplot_all, alines=all_lines,
                  warn_too_much_data=1000, savefig=buf)
     buf.seek(0)
@@ -222,8 +226,8 @@ def add_plots(df):
     tops_series[tops] = df['High'][tops]
     bottoms_series[bottoms] = df['Low'][bottoms]
     # 使用make_addplot()来创建额外的绘图，用于标记顶分型和底分型
-    addplot_tops = mpf.make_addplot(tops_series, scatter=True, markersize=200, marker='v', color='r')
-    addplot_bottoms = mpf.make_addplot(bottoms_series, scatter=True, markersize=200, marker='^', color='g')
+    addplot_tops = mpf.make_addplot(tops_series, scatter=True, markersize=50, marker='v', color='r')
+    addplot_bottoms = mpf.make_addplot(bottoms_series, scatter=True, markersize=50, marker='^', color='g')
 
     addplot_all = [ap_mid_band, ap_upper_band, ap_lower_band, ap_dif, ap_dea, ap_macd, addplot_tops, addplot_bottoms]
 
