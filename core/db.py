@@ -1,5 +1,7 @@
 from psycopg2 import pool
-from core import config
+import core.config as core_config
+
+config = core_config.config
 
 min_conn = 1
 max_conn = 500

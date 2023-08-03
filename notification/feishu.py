@@ -2,7 +2,11 @@ import requests
 import json
 import time
 
-from core import config, logger
+import core.config as core_config
+import core.logger as core_logger
+
+config = core_config.config
+logger = core_logger.logger
 
 app_access_token = ''
 expire = 0

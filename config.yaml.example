@@ -31,6 +31,5 @@ logging:
       level: DEBUG
 mahakala:
   update_klines: True
-  analyze_amount: 1000
+  analyze_amount: 300
   open_amount: 1000
-  draw_amount: 300

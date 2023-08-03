@@ -3,15 +3,21 @@ from datetime import datetime, timezone
 
 from binance.um_futures import UMFutures
 
-from core import config, logger
-from db import db_pool
-import feishu
+import core.config as core_config
+import core.logger as core_logger
+import core.db as core_db
+import notification.feishu as feishu
+
+config = core_config.config
+logger = core_logger.logger
+db = core_db.db_pool
 
 # 创建一个转动破折号的列表
 spinner = itertools.cycle(['-', '\\', '|', '/'])
 
 um_futures_client = UMFutures(key=config['binance']['api_key'], secret=config['binance']['api_secret'],
                               base_url=config['binance']['base_url'])
+
 symbols = []
 symbols_set = set()
 
@@ -37,7 +43,12 @@ def get_binance_info():
     should_create_table = False
     if symbols_set != new_symbols_set:
         if not first_time:
-            feishu.send_post_message('行情提醒', f'币安交易对信息发生变化！')
+            if len(new_symbols_set - symbols_set) > 0:
+                feishu.send_post_message('行情提醒',
+                                         f'币安交易对信息发生变化！上架交易对：{new_symbols_set - symbols_set}')
+            if len(symbols_set - new_symbols_set) > 0:
+                feishu.send_post_message('行情提醒',
+                                         f'币安交易对信息发生变化！下架交易对：{symbols_set - new_symbols_set}')
         should_create_table = True
         symbols = [symbol for symbol in exchange_info['symbols'] if
                    symbol['status'] == 'TRADING' and symbol['symbol'].endswith('USDT')]
@@ -65,14 +76,14 @@ def get_binance_info():
 
 def update_klines(symbol_info, interval, pre_content=''):
     symbol = symbol_info['symbol']
-    while True:
-        with db_pool.getconn() as conn:
-            try:
+    with db.getconn() as conn:
+        try:
+            while True:
                 with conn.cursor() as cursor:
                     # 获取数据库中最新的一条 K 线数据的时间
                     cursor.execute(f'''
-                        SELECT MAX(time) FROM "{symbol}";
-                    ''')
+                            SELECT MAX(time) FROM "{symbol}";
+                        ''')
                     last_time = cursor.fetchone()[0]
 
                     # 如果没有数据，那么 startTime 为 该交易对的上线时间，否则为最新数据的时间
@@ -91,11 +102,11 @@ def update_klines(symbol_info, interval, pre_content=''):
                         time = datetime.fromtimestamp(time / 1000, tz=timezone.utc)
 
                         cursor.execute(f'''
-                            INSERT INTO "{symbol}" (time, open, high, low, close, volume)
-                            VALUES (%s, %s, %s, %s, %s, %s)
-                            ON CONFLICT (time) DO UPDATE
-                            SET open = %s, high = %s, low = %s, close = %s, volume = %s;
-                        ''', (time, open, high, low, close, volume, open, high, low, close, volume))
+                                INSERT INTO "{symbol}" (time, open, high, low, close, volume)
+                                VALUES (%s, %s, %s, %s, %s, %s)
+                                ON CONFLICT (time) DO UPDATE
+                                SET open = %s, high = %s, low = %s, close = %s, volume = %s;
+                            ''', (time, open, high, low, close, volume, open, high, low, close, volume))
 
                     # 提交数据库事务
                     conn.commit()
@@ -104,16 +115,16 @@ def update_klines(symbol_info, interval, pre_content=''):
                     if klines[-1][0] / 1000 >= datetime.now().timestamp() - 60 * 30:  # 以30m为例
                         break
 
-            except Exception as e:
-                logger.error(f'(更新{symbol}的 K 线数据失败，原因：{e}')
-                feishu.send_post_message('程序异常', f'''(更新{symbol}的 K 线数据失败，原因：{e}''')
-                conn.rollback()
-            finally:
-                db_pool.putconn(conn)
+        except Exception as e:
+            logger.error(f'(更新{symbol}的 K 线数据失败，原因：{e}')
+            feishu.send_post_message('程序异常', f'''(更新{symbol}的 K 线数据失败，原因：{e}''')
+            conn.rollback()
+        finally:
+            db.putconn(conn)
 
 
 def create_table(symbol, pre_content=''):
-    with db_pool.getconn() as conn:
+    with db.getconn() as conn:
         try:
             with conn.cursor() as cursor:
                 # 检查表是否存在
@@ -158,8 +169,8 @@ def create_table(symbol, pre_content=''):
                 # 提交数据库事务
                 conn.commit()
         except Exception as e:
-            logger.error(f'创建超表{symbol}失败，原因：{e}')
-            feishu.send_post_message('程序异常', f'''创建超表{symbol}失败，原因：{e}''')
+            logger.error(f'创建{symbol}交易对信息失败！{e}')
+            feishu.send_post_message('行情提醒', f'{pre_content}创建{symbol}交易对信息失败！{e}')
             conn.rollback()
         finally:
-            db_pool.putconn(conn)
+            db.putconn(conn)
