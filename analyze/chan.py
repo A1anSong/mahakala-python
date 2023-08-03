@@ -52,13 +52,13 @@ def analyze(interval):
         plt.switch_backend('agg')
         signal = analyze_data(df, symbol['symbol'], interval)
         if signal['Can Open']:
-            min_price = float(
-                [filters for filters in symbol['filters'] if filters['filterType'] == 'PRICE_FILTER'][0]['minPrice'])
+            tick_size = float(
+                [filters for filters in symbol['filters'] if filters['filterType'] == 'PRICE_FILTER'][0]['tickSize'])
             # 计算出止损价
             if signal['Direction'] == 'Long':
-                stop_loss_price = signal['Stop Loss Price'] - min_price
+                stop_loss_price = signal['Stop Loss Price'] - tick_size
             if signal['Direction'] == 'Short':
-                stop_loss_price = signal['Stop Loss Price'] + min_price
+                stop_loss_price = signal['Stop Loss Price'] + tick_size
             # 计算出开仓价到止损价之间的比例，取开仓价减去止损价的绝对值，除以开仓价，计算出止损比例，取百分比并保留2位小数
             stop_loss_ratio = round(
                 abs(signal['Entry Price'] - stop_loss_price) / signal['Entry Price'] * 100, 2)

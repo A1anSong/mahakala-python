@@ -1,6 +1,6 @@
 app:
   name: mahakala
-  version: 2023.8.3(1)
+  version: 2023.8.4
 binance:
   base_url: https://fapi.binance.com
   api_key:
@@ -31,5 +31,5 @@ logging:
       level: DEBUG
 mahakala:
   update_klines: True
-  analyze_amount: 300
+  analyze_amount: 100
   open_amount: 1000
