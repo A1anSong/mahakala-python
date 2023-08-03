@@ -52,8 +52,8 @@ def analyze(interval):
         plt.switch_backend('agg')
         signal = analyze_data(df, symbol['symbol'], interval)
         if signal['Can Open']:
-            min_price = [filters for filters in symbol['filters'] if filters['filterType'] == 'PRICE_FILTER'][0][
-                'minPrice']
+            min_price = float(
+                [filters for filters in symbol['filters'] if filters['filterType'] == 'PRICE_FILTER'][0]['minPrice'])
             # 计算出止损价
             if signal['Direction'] == 'Long':
                 stop_loss_price = signal['Stop Loss Price'] - min_price
