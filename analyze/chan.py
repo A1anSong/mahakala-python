@@ -41,7 +41,7 @@ def analyze(interval):
     logger.info(f'开始分析{interval}周期K线数据...')
     start_time = datetime.now()
     for symbol in binance.symbols:
-        df = get_data(symbol['symbol'], interval_period[interval], config['mahakala']['analyze_amount'])
+        df = get_data(symbol['symbol'], interval_period[interval], core_config.config['mahakala']['analyze_amount'])
         # 将df数据中最后一个数据删除
         df = df[:-1]
         # 判断数据长度是否大于等于20
@@ -72,7 +72,7 @@ def analyze(interval):
             if suggest_leverage > leverage_brackets[0]['initialLeverage']:
                 suggest_leverage = leverage_brackets[0]['initialLeverage']
             # 建议杠杆倍数的资金体量
-            suggest_leverage_amount = suggest_leverage * config['mahakala']['open_amount']
+            suggest_leverage_amount = suggest_leverage * core_config.config['mahakala']['open_amount']
             initial_leverage = 0
             notional_cap = 0
             for bracket in leverage_brackets:

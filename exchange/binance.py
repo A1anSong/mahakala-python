@@ -64,7 +64,7 @@ def get_binance_info():
             create_table(symbol['symbol'], interactive_content)
         end_time = datetime.now()
         print(f'\r✓ 交易对信息创建完毕！耗时：{end_time - start_time}')
-    if config['mahakala']['update_klines']:
+    if core_config.config['mahakala']['update_klines']:
         start_time = datetime.now()
         for index, symbol in enumerate(symbols):
             interactive_content = f'''({index + 1}/{total_symbols})正在更新{symbol['symbol']}交易对信息: '''

@@ -4,15 +4,13 @@ import io
 
 import core.config as core_config
 
-config = core_config.config
-
 
 def draw_klines(df, symbol, interval):
     addplot_all = add_plots(df)
     all_lines = add_lines(df)
     rectangles = add_rectangles(df)
     buf = io.BytesIO()
-    fig_scale = config['mahakala']['analyze_amount'] / 100
+    fig_scale = core_config['mahakala']['analyze_amount'] / 100
     # 绘制图表
     if len(rectangles) > 0:
         mpf.plot(df, figscale=fig_scale, type='candle', style='binance', title=f'{symbol} {interval}',

@@ -9,3 +9,4 @@ pytz==2023.3
 PyYAML==6.0
 Requests==2.31.0
 SQLAlchemy==2.0.18
+watchdog==3.0.0
