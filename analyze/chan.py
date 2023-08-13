@@ -57,11 +57,10 @@ def analyze(interval):
             # 计算出止损价
             if signal['Direction'] == 'Long':
                 stop_loss_price = signal['Stop Loss Price'] - tick_size
-            if signal['Direction'] == 'Short':
+            else:
                 stop_loss_price = signal['Stop Loss Price'] + tick_size
             # 计算出开仓价到止损价之间的比例，取开仓价减去止损价的绝对值，除以开仓价，计算出止损比例，取百分比并保留2位小数
-            stop_loss_ratio = round(
-                abs(signal['Entry Price'] - stop_loss_price) / signal['Entry Price'] * 100, 2)
+            stop_loss_ratio = round(abs(signal['Entry Price'] - stop_loss_price) / signal['Entry Price'] * 100, 2)
             # 建议杠杆倍数
             suggest_leverage = int(20 / stop_loss_ratio)
             # 获取交易对的杠杆倍数档位
@@ -104,7 +103,7 @@ def analyze(interval):
 建议倍数：{suggest_leverage}倍
 切记不要想着一口吃成胖子哟！
 杠杆档位：{initial_leverage}倍
-资金容量：{int(notional_cap / initial_leverage)} USDT
+资金容量：{int(notional_cap / suggest_leverage)} USDT
 资金费率：{last_funding_rate}%
 时间：{pd.Timestamp('now').strftime('%Y年%m月%d日 %H时%M分%S秒')}''', signal['K Lines'])
     end_time = datetime.now()
